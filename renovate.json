@@ -1,20 +1,37 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+
   "extends": [
-    "config:recommended",
+    "config:best-practices",
     ":dependencyDashboard",
-    ":semanticCommits",
-    ":maintainLockFilesWeekly"
+    ":semanticCommits"
   ],
+
   "timezone": "Asia/Taipei",
   "schedule": ["before 9am on monday"],
   "labels": ["dependencies"],
-  "prHourlyLimit": 4,
+
+  "//": [
+    "Stability + security profile:",
+    "  - Nothing ever auto-merges. Automerge is off by default in Renovate;",
+    "    we simply do not override that anywhere.",
+    "  - minimumReleaseAge is 30 days globally. A new version has to sit",
+    "    in the wild for a month before Renovate will even open a PR for it.",
+    "    vulnerabilityAlerts overrides this to null so CVE fixes are not gated.",
+    "  - prHourlyLimit: 24 caps the rate at which PRs appear. With the 30-day",
+    "    wait this will rarely matter in practice; it is mostly there to",
+    "    stop a surprise burst (e.g. a long quiet period ending).",
+    "  - prConcurrentLimit: 10 caps how many Renovate PRs can be open at once.",
+    "  - pinDigests forces Docker FROM and GitHub Actions references to be",
+    "    pinned to an immutable sha256 digest."
+  ],
+
+  "prHourlyLimit": 24,
   "prConcurrentLimit": 10,
 
   "pinDigests": true,
   "postUpdateOptions": ["gomodTidy"],
-  "minimumReleaseAge": "3 days",
+  "minimumReleaseAge": "30 days",
 
   "vulnerabilityAlerts": {
     "labels": ["security", "dependencies"],
@@ -24,36 +41,12 @@
 
   "packageRules": [
     {
-      "description": "Auto-merge digest-only updates (Docker tag re-push)",
-      "matchDatasources": ["docker"],
-      "matchUpdateTypes": ["digest", "pinDigest"],
-      "automerge": true,
-      "automergeType": "branch",
-      "platformAutomerge": true
-    },
-    {
-      "description": "Auto-merge patch-level GitHub Actions updates",
-      "matchManagers": ["github-actions"],
-      "matchUpdateTypes": ["patch", "pinDigest"],
-      "automerge": true,
-      "automergeType": "branch",
-      "platformAutomerge": true
-    },
-    {
-      "description": "Auto-merge Go module patch updates",
-      "matchManagers": ["gomod"],
-      "matchUpdateTypes": ["patch"],
-      "automerge": true,
-      "automergeType": "branch",
-      "platformAutomerge": true
-    },
-    {
-      "description": "Group pgx / jackc packages together",
-      "matchPackagePatterns": ["^github.com/jackc/"],
+      "description": "Group jackc (pgx) packages. Tightly coupled siblings released together; merging one at a time breaks go.sum resolution.",
+      "matchPackageNames": ["/^github\\.com/jackc//"],
       "groupName": "jackc (pgx)"
     },
     {
-      "description": "Group Go runtime & distroless images together",
+      "description": "Group container base images (Go builder + distroless runtime). Both get weekly digest refreshes upstream; one grouped PR is less noise than two.",
       "matchPackageNames": [
         "golang",
         "docker.io/library/golang",
@@ -62,22 +55,9 @@
       "groupName": "container base images"
     },
     {
-      "description": "Major updates require manual review",
+      "description": "Tag major-version bumps for easy triage in the PR list.",
       "matchUpdateTypes": ["major"],
-      "automerge": false,
       "labels": ["dependencies", "major-update"]
-    }
-  ],
-
-  "customManagers": [
-    {
-      "description": "Pin Go version in Dockerfile FROM statements",
-      "customType": "regex",
-      "fileMatch": ["^Dockerfile$"],
-      "matchStrings": [
-        "#\\s*renovate:\\s*datasource=(?<datasource>.*?) depName=(?<depName>.*?)(?: versioning=(?<versioning>.*?))?\\s*\\n.*?:(?<currentValue>.+)"
-      ],
-      "versioningTemplate": "{{#if versioning}}{{versioning}}{{else}}semver{{/if}}"
     }
   ]
 }
