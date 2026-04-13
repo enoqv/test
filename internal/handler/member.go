@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"os"
 	"strconv"
 	"strings"
 
@@ -38,6 +39,18 @@ func (h *MemberHandler) Routes() http.Handler {
 		r.Get("/api/me", h.Me)
 		r.Get("/api/members/{id}", h.GetMember)
 	})
+
+	// Static test UI. Served from ./web by default; override with WEB_DIR.
+	webDir := os.Getenv("WEB_DIR")
+	if webDir == "" {
+		webDir = "./web"
+	}
+	if _, err := os.Stat(webDir); err == nil {
+		fs := http.FileServer(http.Dir(webDir))
+		r.Handle("/", fs)
+		r.Handle("/*", fs)
+	}
+
 	return r
 }
 

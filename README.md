@@ -23,6 +23,12 @@ internal/handler     # HTTP handlers / routing
 migrations           # SQL schema
 ```
 
+## Test UI
+
+A static web page is served at **`/`** (from the `web/` directory) with forms
+for register / login / `/api/me` / `/api/members/{id}` / `/healthz`.
+The JWT returned by login is stored in `localStorage` and reused for authenticated calls.
+
 ## Endpoints
 
 | Method | Path                | Auth  | Description          |

@@ -23,6 +23,9 @@ FROM gcr.io/distroless/static-debian12:nonroot
 
 WORKDIR /app
 COPY --from=builder /out/server /app/server
+COPY --from=builder /src/web /app/web
+
+ENV WEB_DIR=/app/web
 
 USER nonroot:nonroot
 EXPOSE 8080

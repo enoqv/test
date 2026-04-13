@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Member System Test</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang TC",
+        "Microsoft JhengHei", sans-serif;
+      max-width: 720px;
+      margin: 32px auto;
+      padding: 0 16px;
+      color: #222;
+      background: #f7f7f8;
+    }
+    h1 { margin-bottom: 4px; }
+    .sub { color: #666; margin-bottom: 24px; }
+    .card {
+      background: #fff;
+      border: 1px solid #e3e3e6;
+      border-radius: 8px;
+      padding: 20px;
+      margin-bottom: 16px;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.03);
+    }
+    .card h2 { margin-top: 0; font-size: 18px; }
+    label { display: block; font-size: 13px; color: #444; margin: 8px 0 4px; }
+    input {
+      width: 100%; padding: 8px 10px; border: 1px solid #ccc;
+      border-radius: 6px; font-size: 14px;
+    }
+    button {
+      margin-top: 12px; padding: 8px 16px; border: 0;
+      background: #2563eb; color: #fff; border-radius: 6px;
+      font-size: 14px; cursor: pointer;
+    }
+    button.ghost { background: #6b7280; }
+    button:disabled { background: #9ca3af; cursor: not-allowed; }
+    button + button { margin-left: 8px; }
+    pre {
+      background: #0f172a; color: #e2e8f0; padding: 12px;
+      border-radius: 6px; overflow-x: auto; font-size: 13px;
+      white-space: pre-wrap; word-break: break-all;
+    }
+    .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+    .token {
+      font-family: ui-monospace, Menlo, monospace; font-size: 12px;
+      color: #059669; word-break: break-all;
+    }
+    .status-ok   { color: #059669; }
+    .status-err  { color: #dc2626; }
+  </style>
+</head>
+<body>
+  <h1>Member System</h1>
+  <div class="sub">簡單的 API 測試頁面</div>
+
+  <div class="card">
+    <h2>1. 註冊</h2>
+    <label>Username</label>
+    <input id="reg-username" value="alice" />
+    <label>Email</label>
+    <input id="reg-email" value="alice@example.com" />
+    <label>Password</label>
+    <input id="reg-password" type="password" value="secret123" />
+    <button onclick="register()">Register</button>
+  </div>
+
+  <div class="card">
+    <h2>2. 登入</h2>
+    <label>Username</label>
+    <input id="login-username" value="alice" />
+    <label>Password</label>
+    <input id="login-password" type="password" value="secret123" />
+    <button onclick="login()">Login</button>
+    <div style="margin-top:12px;">
+      Token: <span id="token" class="token">(尚未登入)</span>
+      <button class="ghost" onclick="clearToken()">清除</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>3. 需要授權的呼叫</h2>
+    <div class="row">
+      <button onclick="callMe()">GET /api/me</button>
+      <label style="margin:0;">或指定 ID:</label>
+      <input id="member-id" style="width:80px;" value="1" />
+      <button onclick="callMember()">GET /api/members/{id}</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>4. 健康檢查</h2>
+    <button onclick="callHealth()">GET /healthz</button>
+  </div>
+
+  <div class="card">
+    <h2>回應</h2>
+    <div>狀態: <span id="status">-</span></div>
+    <pre id="output">(尚未呼叫)</pre>
+  </div>
+
+  <script>
+    const TOKEN_KEY = "member_jwt";
+
+    function setToken(t) {
+      if (t) {
+        localStorage.setItem(TOKEN_KEY, t);
+      } else {
+        localStorage.removeItem(TOKEN_KEY);
+      }
+      refreshTokenDisplay();
+    }
+    function getToken() {
+      return localStorage.getItem(TOKEN_KEY) || "";
+    }
+    function clearToken() { setToken(""); }
+    function refreshTokenDisplay() {
+      const el = document.getElementById("token");
+      const t = getToken();
+      el.textContent = t ? t : "(尚未登入)";
+    }
+
+    async function call(method, path, body, auth) {
+      const headers = { "Content-Type": "application/json" };
+      if (auth) {
+        const t = getToken();
+        if (!t) {
+          showResult(0, { error: "no token, please login first" });
+          return;
+        }
+        headers["Authorization"] = "Bearer " + t;
+      }
+      try {
+        const res = await fetch(path, {
+          method,
+          headers,
+          body: body ? JSON.stringify(body) : undefined,
+        });
+        let data;
+        const text = await res.text();
+        try { data = JSON.parse(text); } catch { data = text; }
+        showResult(res.status, data);
+        return { status: res.status, data };
+      } catch (e) {
+        showResult(0, { error: String(e) });
+      }
+    }
+
+    function showResult(status, data) {
+      const st = document.getElementById("status");
+      st.textContent = status || "network error";
+      st.className = status >= 200 && status < 300 ? "status-ok" : "status-err";
+      document.getElementById("output").textContent =
+        typeof data === "string" ? data : JSON.stringify(data, null, 2);
+    }
+
+    async function register() {
+      await call("POST", "/api/register", {
+        username: document.getElementById("reg-username").value,
+        email: document.getElementById("reg-email").value,
+        password: document.getElementById("reg-password").value,
+      });
+    }
+
+    async function login() {
+      const r = await call("POST", "/api/login", {
+        username: document.getElementById("login-username").value,
+        password: document.getElementById("login-password").value,
+      });
+      if (r && r.status === 200 && r.data && r.data.token) {
+        setToken(r.data.token);
+      }
+    }
+
+    async function callMe() {
+      await call("GET", "/api/me", null, true);
+    }
+    async function callMember() {
+      const id = document.getElementById("member-id").value;
+      await call("GET", "/api/members/" + encodeURIComponent(id), null, true);
+    }
+    async function callHealth() {
+      await call("GET", "/healthz");
+    }
+
+    refreshTokenDisplay();
+  </script>
+</body>
+</html>
