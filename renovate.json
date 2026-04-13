@@ -13,20 +13,23 @@
 
   "//": [
     "Stability + security profile:",
-    "  - Nothing ever auto-merges. Automerge is off by default in Renovate;",
-    "    we simply do not override that anywhere.",
+    "  - automerge is explicitly false at the top level. Renovate's default",
+    "    is already false, but setting it explicitly makes the intent",
+    "    unambiguous and prevents an accidental override from a preset",
+    "    or future packageRule slipping auto-merge in.",
     "  - minimumReleaseAge is 30 days globally. A new version has to sit",
     "    in the wild for a month before Renovate will even open a PR for it.",
     "    vulnerabilityAlerts overrides this to null so CVE fixes are not gated.",
-    "  - prHourlyLimit: 24 caps the rate at which PRs appear. With the 30-day",
-    "    wait this will rarely matter in practice; it is mostly there to",
-    "    stop a surprise burst (e.g. a long quiet period ending).",
+    "  - prHourlyLimit: 2 matches the config:recommended default. With the",
+    "    30-day wait this rarely bites; it is mostly a guard against surprise",
+    "    bursts.",
     "  - prConcurrentLimit: 10 caps how many Renovate PRs can be open at once.",
     "  - pinDigests forces Docker FROM and GitHub Actions references to be",
     "    pinned to an immutable sha256 digest."
   ],
 
-  "prHourlyLimit": 24,
+  "automerge": false,
+  "prHourlyLimit": 2,
   "prConcurrentLimit": 10,
 
   "pinDigests": true,
