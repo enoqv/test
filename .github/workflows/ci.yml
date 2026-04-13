@@ -80,17 +80,17 @@ jobs:
 
   # -------------------------------------------------------------------
   # P3: Verify cosign / sigstore signatures of base images.
-  #   distroless is signed keyless by the GoogleContainerTools/distroless
-  #   release workflow.  We extract the pinned digest from the Dockerfile
-  #   and verify the signature matches the expected publisher identity,
-  #   so a compromised registry / DNS / TLS cannot swap in a different
-  #   image under the same digest (assuming Fulcio/Rekor are not also
-  #   compromised -- see docs/security.md for the trust-root caveat).
   #
-  #   The golang builder image on Docker Hub does not currently have a
-  #   sigstore signature we can verify in the same way, so for it we
-  #   rely on digest pinning + Renovate.  If a verifiable signature
-  #   becomes available, extend this job.
+  # The actual verification is driven by:
+  #   - Dockerfile                          (source of truth for FROM refs)
+  #   - .github/cosign-image-policy.json    (how each image is verified)
+  #   - .github/scripts/verify-base-images.sh  (the glue)
+  #
+  # This keeps the workflow Dockerfile-agnostic: changing a FROM line or
+  # adding a new builder stage does NOT require touching this file.
+  # Any FROM whose image name has no entry in the policy file will fail
+  # the job with a clear message -- forcing a conscious decision on
+  # whether to verify it or add it to the unsigned allow-list.
   # -------------------------------------------------------------------
   verify-base-images:
     name: Verify base image signatures
@@ -102,24 +102,8 @@ jobs:
       - name: Install cosign
         uses: sigstore/cosign-installer@v3.7.0
 
-      - name: Extract pinned digests from Dockerfile
-        id: digests
-        run: |
-          set -euo pipefail
-          distroless=$(grep -oE 'gcr\.io/distroless/static-debian12:[^ ]+@sha256:[a-f0-9]{64}' Dockerfile | head -n1)
-          if [ -z "$distroless" ]; then
-            echo "::error::could not find pinned distroless digest in Dockerfile"
-            exit 1
-          fi
-          echo "distroless=$distroless" >> "$GITHUB_OUTPUT"
-          echo "Distroless ref: $distroless"
-
-      - name: Verify distroless signature (keyless / sigstore)
-        run: |
-          cosign verify \
-            --certificate-oidc-issuer='https://token.actions.githubusercontent.com' \
-            --certificate-identity-regexp='^https://github\.com/GoogleContainerTools/distroless/\.github/workflows/.+' \
-            "${{ steps.digests.outputs.distroless }}"
+      - name: Verify all FROM base images against policy
+        run: bash .github/scripts/verify-base-images.sh Dockerfile
 
   # -------------------------------------------------------------------
   # Build multi-arch image, push to GHCR, then P4: Trivy CVE scan.

@@ -1,0 +1,28 @@
+{
+  "$comment": "Policy for verifying base image signatures with cosign.",
+
+  "$schema_description": {
+    "policies": "Images with sigstore signatures. Matched by image-name prefix (startswith). Each entry specifies the cosign OIDC issuer and certificate-identity regex to require.",
+    "unsigned": "Images we knowingly cannot verify with sigstore today. Listed explicitly (rather than silent-skip) so that any new base image defaults to failing the check until someone makes a conscious decision."
+  },
+
+  "policies": [
+    {
+      "name": "GoogleContainerTools distroless",
+      "match": "gcr.io/distroless/",
+      "issuer": "https://token.actions.githubusercontent.com",
+      "identity": "^https://github\\.com/GoogleContainerTools/distroless/\\.github/workflows/.+"
+    }
+  ],
+
+  "unsigned": [
+    {
+      "match": "golang",
+      "reason": "Docker Hub official images do not currently publish sigstore signatures we can verify in CI; relying on digest pinning + Renovate."
+    },
+    {
+      "match": "docker.io/library/golang",
+      "reason": "same as above (fully qualified form)."
+    }
+  ]
+}
