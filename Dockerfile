@@ -1,7 +1,8 @@
 # syntax=docker/dockerfile:1.7
 
 # ---- Build stage ----
-FROM --platform=$BUILDPLATFORM golang:1.22-alpine AS builder
+# renovate: datasource=docker depName=golang
+FROM --platform=$BUILDPLATFORM golang:1.22-alpine@sha256:1699c10032ca2582ec89a24a1312d986a3f094aed3d5c1147b19880afe40e052 AS builder
 
 ARG TARGETOS
 ARG TARGETARCH
@@ -19,7 +20,8 @@ RUN --mount=type=cache,target=/root/.cache/go-build \
     go build -trimpath -ldflags="-s -w" -o /out/server ./cmd/server
 
 # ---- Runtime stage ----
-FROM gcr.io/distroless/static-debian12:nonroot
+# renovate: datasource=docker depName=gcr.io/distroless/static-debian12
+FROM gcr.io/distroless/static-debian12:nonroot@sha256:a9329520abc449e3b14d5bc3a6ffae065bdde0f02667fa10880c49b35c109fd1
 
 WORKDIR /app
 COPY --from=builder /out/server /app/server

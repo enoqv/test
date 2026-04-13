@@ -1,0 +1,29 @@
+# Hadolint rules: https://github.com/hadolint/hadolint/wiki
+#
+# Policy:
+#  - Every FROM must be pinned to a digest (not just a tag).
+#  - No :latest.
+#  - We pin package versions where practical; distroless has no package manager.
+
+failure-threshold: warning
+
+# Treat these as errors rather than info/warnings.
+override:
+  error:
+    - DL3007  # Using latest
+    - DL3022  # COPY --from should reference previously defined FROM alias
+    - DL3023  # COPY --from cannot reference its own FROM
+    - DL3024  # FROM aliases must be unique
+    - DL3026  # Use only official FROM images
+
+# Ignore rules that don't apply to our multi-stage distroless build.
+ignored:
+  # DL3018: apk add without --no-cache. We're distroless runtime, no apk at all.
+  - DL3018
+  # DL3008: apt-get pin version. No apt in our build.
+  - DL3008
+
+trustedRegistries:
+  - docker.io
+  - gcr.io
+  - ghcr.io

@@ -10,7 +10,46 @@ env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
 
+permissions:
+  contents: read
+
 jobs:
+  # -------------------------------------------------------------------
+  # P2: Dockerfile lint (hadolint)
+  #   Enforces policy on the Dockerfile itself: every FROM must be
+  #   pinned to a digest, no :latest, etc.  This is a STATIC check on
+  #   the Dockerfile source; it is independent of OCI pull-time digest
+  #   verification, which checks the opposite direction (did we get
+  #   the bits we asked for?).
+  # -------------------------------------------------------------------
+  lint:
+    name: Lint (hadolint)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Run hadolint
+        uses: hadolint/hadolint-action@v3.1.0
+        with:
+          dockerfile: Dockerfile
+          config: .hadolint.yaml
+          failure-threshold: warning
+
+      - name: Enforce FROM @sha256 digest pin
+        run: |
+          set -euo pipefail
+          unpinned=$(awk '/^FROM/ && $0 !~ /@sha256:[a-f0-9]{64}/ {print NR ": " $0}' Dockerfile || true)
+          if [ -n "$unpinned" ]; then
+            echo "::error::Unpinned FROM instruction(s) detected:"
+            echo "$unpinned"
+            exit 1
+          fi
+          echo "All FROM instructions are pinned to a digest."
+
+  # -------------------------------------------------------------------
+  # Go unit tests (unchanged).
+  # -------------------------------------------------------------------
   test:
     name: Test
     runs-on: ubuntu-latest
@@ -39,13 +78,60 @@ jobs:
           name: coverage
           path: coverage.out
 
-  build-and-push:
-    name: Build and push multi-arch image
+  # -------------------------------------------------------------------
+  # P3: Verify cosign / sigstore signatures of base images.
+  #   distroless is signed keyless by the GoogleContainerTools/distroless
+  #   release workflow.  We extract the pinned digest from the Dockerfile
+  #   and verify the signature matches the expected publisher identity,
+  #   so a compromised registry / DNS / TLS cannot swap in a different
+  #   image under the same digest (assuming Fulcio/Rekor are not also
+  #   compromised -- see docs/security.md for the trust-root caveat).
+  #
+  #   The golang builder image on Docker Hub does not currently have a
+  #   sigstore signature we can verify in the same way, so for it we
+  #   rely on digest pinning + Renovate.  If a verifiable signature
+  #   becomes available, extend this job.
+  # -------------------------------------------------------------------
+  verify-base-images:
+    name: Verify base image signatures
     runs-on: ubuntu-latest
-    needs: test
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install cosign
+        uses: sigstore/cosign-installer@v3.7.0
+
+      - name: Extract pinned digests from Dockerfile
+        id: digests
+        run: |
+          set -euo pipefail
+          distroless=$(grep -oE 'gcr\.io/distroless/static-debian12:[^ ]+@sha256:[a-f0-9]{64}' Dockerfile | head -n1)
+          if [ -z "$distroless" ]; then
+            echo "::error::could not find pinned distroless digest in Dockerfile"
+            exit 1
+          fi
+          echo "distroless=$distroless" >> "$GITHUB_OUTPUT"
+          echo "Distroless ref: $distroless"
+
+      - name: Verify distroless signature (keyless / sigstore)
+        run: |
+          cosign verify \
+            --certificate-oidc-issuer='https://token.actions.githubusercontent.com' \
+            --certificate-identity-regexp='^https://github\.com/GoogleContainerTools/distroless/\.github/workflows/.+' \
+            "${{ steps.digests.outputs.distroless }}"
+
+  # -------------------------------------------------------------------
+  # Build multi-arch image, push to GHCR, then P4: Trivy CVE scan.
+  # -------------------------------------------------------------------
+  build-and-push:
+    name: Build, scan and push multi-arch image
+    runs-on: ubuntu-latest
+    needs: [lint, test, verify-base-images]
     permissions:
       contents: read
       packages: write
+      security-events: write
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -74,7 +160,40 @@ jobs:
             type=sha,format=short
             type=raw,value=latest,enable={{is_default_branch}}
 
-      - name: Build and push
+      # P4 step 1: Build a local single-arch image for scanning first.
+      # Trivy needs a concrete image to scan; scanning before push means
+      # vulnerable images never reach the registry.
+      - name: Build local image for scanning
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          load: true
+          tags: local/scan-target:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Trivy vulnerability scan
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: local/scan-target:${{ github.sha }}
+          format: sarif
+          output: trivy-results.sarif
+          severity: CRITICAL,HIGH
+          exit-code: "1"
+          ignore-unfixed: true
+          vuln-type: os,library
+
+      - name: Upload Trivy SARIF to GitHub Security
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: trivy-results.sarif
+          category: trivy
+
+      # P4 step 2: Only reached if the scan passed.
+      - name: Build and push multi-arch image
+        id: push
         uses: docker/build-push-action@v6
         with:
           context: .

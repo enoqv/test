@@ -1,0 +1,83 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:recommended",
+    ":dependencyDashboard",
+    ":semanticCommits",
+    ":maintainLockFilesWeekly"
+  ],
+  "timezone": "Asia/Taipei",
+  "schedule": ["before 9am on monday"],
+  "labels": ["dependencies"],
+  "prHourlyLimit": 4,
+  "prConcurrentLimit": 10,
+
+  "pinDigests": true,
+  "postUpdateOptions": ["gomodTidy"],
+  "minimumReleaseAge": "3 days",
+
+  "vulnerabilityAlerts": {
+    "labels": ["security", "dependencies"],
+    "schedule": [],
+    "minimumReleaseAge": null
+  },
+
+  "packageRules": [
+    {
+      "description": "Auto-merge digest-only updates (Docker tag re-push)",
+      "matchDatasources": ["docker"],
+      "matchUpdateTypes": ["digest", "pinDigest"],
+      "automerge": true,
+      "automergeType": "branch",
+      "platformAutomerge": true
+    },
+    {
+      "description": "Auto-merge patch-level GitHub Actions updates",
+      "matchManagers": ["github-actions"],
+      "matchUpdateTypes": ["patch", "pinDigest"],
+      "automerge": true,
+      "automergeType": "branch",
+      "platformAutomerge": true
+    },
+    {
+      "description": "Auto-merge Go module patch updates",
+      "matchManagers": ["gomod"],
+      "matchUpdateTypes": ["patch"],
+      "automerge": true,
+      "automergeType": "branch",
+      "platformAutomerge": true
+    },
+    {
+      "description": "Group pgx / jackc packages together",
+      "matchPackagePatterns": ["^github.com/jackc/"],
+      "groupName": "jackc (pgx)"
+    },
+    {
+      "description": "Group Go runtime & distroless images together",
+      "matchPackageNames": [
+        "golang",
+        "docker.io/library/golang",
+        "gcr.io/distroless/static-debian12"
+      ],
+      "groupName": "container base images"
+    },
+    {
+      "description": "Major updates require manual review",
+      "matchUpdateTypes": ["major"],
+      "automerge": false,
+      "labels": ["dependencies", "major-update"]
+    }
+  ],
+
+  "customManagers": [
+    {
+      "description": "Pin Go version in Dockerfile FROM statements",
+      "customType": "regex",
+      "fileMatch": ["^Dockerfile$"],
+      "matchStrings": [
+        "#\\s*renovate:\\s*datasource=(?<datasource>.*?) depName=(?<depName>.*?)(?: versioning=(?<versioning>.*?))?\\s*\\n.*?:(?<currentValue>.+)"
+      ],
+      "versioningTemplate": "{{#if versioning}}{{versioning}}{{else}}semver{{/if}}"
+    }
+  ]
+}
