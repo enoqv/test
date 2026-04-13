@@ -161,6 +161,28 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
+      # Trivy runs twice by design:
+      #   1. "table" format to stdout for human-readable CI log output.
+      #      Scanners are restricted to vuln only -- secret scanning
+      #      stays off here because this log is publicly viewable on
+      #      a public repo and we do not want any accidental secret
+      #      detection to be broadcast to the world.  exit-code: 0 so
+      #      this step never blocks; it is purely informational.
+      #   2. "sarif" format into trivy-results.sarif, uploaded to the
+      #      GitHub Security tab (which is access-restricted), with the
+      #      full default scanner set.  This step is the actual gate
+      #      (exit-code: 1 on fixable CRITICAL/HIGH).
+      - name: Trivy scan (human-readable log)
+        uses: aquasecurity/trivy-action@v0.35.0
+        with:
+          image-ref: local/scan-target:${{ github.sha }}
+          format: table
+          severity: CRITICAL,HIGH
+          exit-code: "0"
+          ignore-unfixed: true
+          vuln-type: os,library
+          scanners: vuln
+
       - name: Trivy vulnerability scan
         uses: aquasecurity/trivy-action@v0.35.0
         with:
