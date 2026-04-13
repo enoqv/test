@@ -36,6 +36,10 @@ jobs:
           config: .hadolint.yaml
           failure-threshold: warning
 
+      # hadolint has no built-in rule for digest pinning (see
+      # hadolint/hadolint#773, open since 2022).  DL3006/DL3007 only
+      # enforce "has a tag" and "not :latest".  This step fills that gap.
+      # Remove once the upstream rule lands and is enabled in .hadolint.yaml.
       - name: Enforce FROM @sha256 digest pin
         run: |
           set -euo pipefail

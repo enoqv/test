@@ -4,6 +4,13 @@
 #  - Every FROM must be pinned to a digest (not just a tag).
 #  - No :latest.
 #  - We pin package versions where practical; distroless has no package manager.
+#
+# NOTE: hadolint has no built-in rule requiring `@sha256:` digest pinning.
+# DL3006/DL3007 only enforce "has a tag" and "not :latest".  The digest
+# requirement is enforced by a separate awk step in .github/workflows/ci.yml
+# ("Enforce FROM @sha256 digest pin").  When hadolint adds native support
+# (tracking upstream issue hadolint/hadolint#773), that step can be removed
+# in favour of the native rule.
 
 failure-threshold: warning
 
