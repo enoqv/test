@@ -1,0 +1,79 @@
+name: Renovate
+
+# Runs Renovate on a fixed schedule from this repository itself, instead
+# of relying on the Mend-hosted Renovate GitHub App.  Configuration lives
+# in ./renovate.json.
+#
+# Prerequisites (one-time setup):
+#
+#   1. Create a Personal Access Token (or GitHub App installation token)
+#      with scopes:
+#          contents: write      (create branches, push commits)
+#          pull-requests: write (open / update / close PRs)
+#          workflows: write     (update .github/workflows/*.yml files)
+#      A fine-grained PAT is recommended; restrict to just this repo.
+#
+#   2. Save it as a repository secret named RENOVATE_TOKEN.
+#
+# Notes:
+#
+#   - The workflow's built-in GITHUB_TOKEN is NOT used for Renovate's
+#     git operations, because GITHUB_TOKEN cannot push changes that
+#     modify .github/workflows/*.yml files (GitHub blocks this by design).
+#     Hence the explicit RENOVATE_TOKEN.
+#
+#   - The schedule here controls WHEN Renovate runs. The "schedule"
+#     field inside renovate.json controls when it is allowed to OPEN
+#     PRs. Both must pass for a PR to appear.
+#
+#   - Concurrency ensures only one Renovate run at a time; parallel
+#     runs can step on each other when updating the same branches.
+
+on:
+  schedule:
+    # Daily at 01:00 UTC (= 09:00 Asia/Taipei, matching renovate.json schedule).
+    - cron: "0 1 * * *"
+  workflow_dispatch:
+    inputs:
+      logLevel:
+        description: "Renovate log level"
+        type: choice
+        options: [info, debug]
+        default: info
+      dryRun:
+        description: "Dry run (log what would change, do not open PRs)"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: renovate
+  cancel-in-progress: false
+
+jobs:
+  renovate:
+    name: Run Renovate
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Self-check renovate.json is valid JSON
+        run: |
+          if ! python3 -c "import json, sys; json.load(open('renovate.json'))"; then
+            echo "::error::renovate.json is not valid JSON"
+            exit 1
+          fi
+
+      - name: Run Renovate
+        uses: renovatebot/github-action@v46.0.2
+        with:
+          configurationFile: renovate.json
+          token: ${{ secrets.RENOVATE_TOKEN }}
+        env:
+          LOG_LEVEL: ${{ inputs.logLevel || 'info' }}
+          RENOVATE_DRY_RUN: ${{ inputs.dryRun && 'full' || '' }}
+          # Scope Renovate to this repository only.
+          RENOVATE_REPOSITORIES: ${{ github.repository }}
