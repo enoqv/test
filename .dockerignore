@@ -8,3 +8,26 @@ docker-compose.yml
 tmp/
 bin/
 *.log
+
+# Prevent secrets / credentials from being COPYed into image layers.
+# First line of defence; Trivy's secret scanner is the second line.
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+id_rsa*
+id_ed25519*
+id_ecdsa*
+id_dsa*
+*.pgp
+secrets/
+secret/
+credentials*
+.aws/
+.gcp/
+.azure/
+.kube/
+service-account*.json
