@@ -68,3 +68,18 @@ go test ./...
 
 Multi-arch images (amd64 + arm64) are built via GitHub Actions and pushed to
 `ghcr.io/<owner>/<repo>` on every push to `main` and feature branches.
+
+## Dependency updates (Renovate)
+
+Renovate runs from `.github/workflows/renovate.yml` (self-hosted via GitHub
+Actions, not the Mend GitHub App). Configuration lives in `renovate.json`.
+
+One-time setup on a fresh clone/fork:
+
+1. Create a fine-grained Personal Access Token scoped to this repo with:
+   - `contents: write`
+   - `pull-requests: write`
+   - `workflows: write`  (required — `GITHUB_TOKEN` cannot edit workflow files)
+2. Add it as a repository secret named `RENOVATE_TOKEN`.
+3. The workflow then runs daily at 01:00 UTC and can also be triggered
+   manually via the Actions tab, with an optional dry-run toggle.
