@@ -45,7 +45,7 @@
   "packageRules": [
     {
       "description": "Group jackc (pgx) packages. Tightly coupled siblings released together; merging one at a time breaks go.sum resolution.",
-      "matchPackageNames": ["/^github\\.com/jackc//"],
+      "matchPackageNames": ["github.com/jackc/**"],
       "groupName": "jackc (pgx)"
     },
     {
