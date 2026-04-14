@@ -18,9 +18,14 @@ env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
 
+# Top-level permissions are intentionally the least-privileged default.
+# Capabilities needed by individual jobs (packages: write for push,
+# id-token: write for keyless cosign signing, security-events: write
+# for SARIF upload, etc.) are granted on the job itself. Keeping
+# id-token at job-level only means a future job added without an
+# explicit permissions block will NOT inherit OIDC access.
 permissions:
   contents: read
-  id-token: write  # required for keyless cosign signing via GitHub OIDC
 
 jobs:
   # -------------------------------------------------------------------
