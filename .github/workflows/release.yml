@@ -101,10 +101,7 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       # Tag strategy for semver tag events (v1.2.3):
-      #   - 1.2.3        (exact version)
-      #   - 1.2          (major.minor rolling)
-      #   - 1            (major rolling)
-      #   - sha-abc1234  (commit traceability)
+      #   - 1.2.3        (exact version, *.*.*)
       #   - latest       (auto: only on stable semver, not on prereleases)
       - name: Extract metadata
         id: meta
@@ -113,9 +110,6 @@ jobs:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
             type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
-            type=semver,pattern={{major}}
-            type=sha,format=short
           flavor: |
             latest=auto
 
