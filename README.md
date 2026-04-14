@@ -77,9 +77,14 @@ Actions, not the Mend GitHub App). Configuration lives in `renovate.json`.
 One-time setup on a fresh clone/fork:
 
 1. Create a fine-grained Personal Access Token scoped to this repo with:
-   - `contents: write`
-   - `pull-requests: write`
-   - `workflows: write`  (required — `GITHUB_TOKEN` cannot edit workflow files)
+   - **Contents**: Read and write
+   - **Pull requests**: Read and write
+   - **Workflows**: Read and write  (required — `GITHUB_TOKEN` cannot edit workflow files)
+   - **Commit statuses**: Read and write  (required — Renovate writes a
+     `renovate/stability-days` commit status to track the `minimumReleaseAge`
+     window; without this the run aborts with a misleading "Repository has
+     changed during renovation" error)
 2. Add it as a repository secret named `RENOVATE_TOKEN`.
-3. The workflow then runs daily at 01:00 UTC and can also be triggered
-   manually via the Actions tab, with an optional dry-run toggle.
+3. The workflow then runs every 6 hours (at 00:00 / 06:00 / 12:00 / 18:00 UTC)
+   and can also be triggered manually via the Actions tab, with an optional
+   dry-run toggle.
