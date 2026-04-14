@@ -147,29 +147,15 @@ jobs:
           cache-to: type=gha,mode=max
 
       # Trivy CVE tiering:
-      #   1. human-readable table -- both CRITICAL and HIGH, never blocks,
-      #      so reviewers see the full list in the CI log.
-      #   2. SARIF upload -- both CRITICAL and HIGH, never blocks,
-      #      so the full list shows up in the GitHub Security tab.
-      #   3. blocking scan -- CRITICAL only, blocks the CI run.
+      #   1. SARIF upload -- CRITICAL and HIGH, never blocks, so the full
+      #      list shows up in the GitHub Security tab even when CI fails
+      #      (upload-sarif runs with if: always()).
+      #   2. blocking scan -- CRITICAL and HIGH, blocks the CI run and
+      #      prints the offending CVE table to the log.
       #
-      # HIGH-severity CVEs are fully visible (both log and Security tab)
-      # but do not gate the release. This is common for projects where
-      # many HIGH CVEs come from upstream stdlib / OS packages that we
-      # cannot patch on demand, while CRITICAL still demands action.
-      # govulncheck (in the test job above) provides a tighter filter
-      # for Go-specific CVEs.
-      - name: Trivy scan (human-readable log, CRITICAL + HIGH)
-        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # v0.35.0
-        with:
-          image-ref: local/scan-target:${{ github.sha }}
-          format: table
-          severity: CRITICAL,HIGH
-          exit-code: "0"
-          ignore-unfixed: true
-          vuln-type: os,library
-          scanners: vuln
-
+      # govulncheck (in the test job above) provides a tighter filter for
+      # Go-specific CVEs by reachability; Trivy covers OS packages and
+      # non-Go libraries in the final image that govulncheck cannot see.
       - name: Trivy vulnerability scan (SARIF, CRITICAL + HIGH, non-blocking)
         uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # v0.35.0
         with:
@@ -188,12 +174,12 @@ jobs:
           sarif_file: trivy-results.sarif
           category: trivy
 
-      - name: Trivy scan (block on CRITICAL)
+      - name: Trivy scan (block on CRITICAL + HIGH)
         uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # v0.35.0
         with:
           image-ref: local/scan-target:${{ github.sha }}
           format: table
-          severity: CRITICAL
+          severity: CRITICAL,HIGH
           exit-code: "1"
           ignore-unfixed: true
           vuln-type: os,library
