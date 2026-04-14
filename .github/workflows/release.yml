@@ -1,13 +1,16 @@
 name: Release
 
-# Triggered ONLY on pushed tags matching v*.*.* (semver).
-# Builds the multi-arch image, scans it, pushes to GHCR, signs it
-# keyless via sigstore, and re-verifies the signature as a smoke test.
+# Triggered only on pushed tags matching v*.*.* (semver).
 #
-# CI (lint / test / verify-base-images) runs separately on every push
-# and PR to main; a release tag is expected to point at a commit that
-# already passed CI.  If you want extra safety, re-run ci.yml on the
-# tag's commit before tagging.
+# Flow:
+#   1. guard                  -- reject tags not reachable from main
+#   2. validate               -- reuse the same _validate.yml as PR CI
+#   3. build-and-push         -- multi-arch build, SBOM + SLSA, push, sign
+#   4. verify-published-image -- re-verify own signature (smoke test)
+#
+# Each step gates the next, so a tag on a non-main commit, a failing
+# lint / test / verify-base-images / scan, or a broken build all stop
+# the pipeline before anything is published.
 
 on:
   push:
@@ -29,17 +32,55 @@ permissions:
 
 jobs:
   # -------------------------------------------------------------------
-  # Build multi-arch image, scan, push to GHCR, sign, attach SBOM
-  # and SLSA provenance attestations.
+  # C+: reject tags that don't point at a commit reachable from main.
+  # Protects against tagging a random feature branch or arbitrary SHA
+  # and thereby skipping the PR / main CI gate entirely.
   # -------------------------------------------------------------------
-  build-and-push:
-    name: Build, scan, push, sign and attest multi-arch image
+  guard:
+    name: Tag must be on main
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      packages: write
+    steps:
+      - name: Checkout (full history)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Verify tag is an ancestor of main
+        run: |
+          set -euo pipefail
+          git fetch origin main --depth=0
+          if ! git merge-base --is-ancestor "$GITHUB_SHA" origin/main; then
+            echo "::error::Tag $GITHUB_REF_NAME ($GITHUB_SHA) is not reachable from origin/main."
+            echo "::error::Only tag commits that are already on main (and have passed CI)."
+            exit 1
+          fi
+          echo "OK: tag $GITHUB_REF_NAME is on main."
+
+  # -------------------------------------------------------------------
+  # B: reuse the same validation pipeline as ci.yml. Runs lint, test,
+  # verify-base-images and Trivy scan against the tagged commit, so the
+  # gate is identical to what a PR sees -- no drift.
+  # -------------------------------------------------------------------
+  validate:
+    needs: guard
+    uses: ./.github/workflows/_validate.yml
+    permissions:
+      contents: read
       security-events: write
-      id-token: write  # P5: keyless cosign signing
+
+  # -------------------------------------------------------------------
+  # Multi-arch build, push, sign, SBOM + SLSA provenance attest.
+  # -------------------------------------------------------------------
+  build-and-push:
+    name: Build, push, sign and attest multi-arch image
+    runs-on: ubuntu-latest
+    needs: validate
+    permissions:
+      contents: read
+      packages: write
+      id-token: write  # keyless cosign signing via GitHub OIDC
     outputs:
       digest: ${{ steps.push.outputs.digest }}
     steps:
@@ -78,63 +119,9 @@ jobs:
           flavor: |
             latest=auto
 
-      # P4 step 1: Build a local single-arch image for scanning first.
-      # Trivy needs a concrete image to scan; scanning before push means
-      # vulnerable images never reach the registry.
-      - name: Build local image for scanning
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: ./Dockerfile
-          load: true
-          tags: local/scan-target:${{ github.sha }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
-      # Trivy runs twice by design:
-      #   1. "table" format to stdout for human-readable CI log output.
-      #      Scanners are restricted to vuln only -- secret scanning
-      #      stays off here because this log is publicly viewable on
-      #      a public repo and we do not want any accidental secret
-      #      detection to be broadcast to the world.  exit-code: 0 so
-      #      this step never blocks; it is purely informational.
-      #   2. "sarif" format into trivy-results.sarif, uploaded to the
-      #      GitHub Security tab (which is access-restricted), with the
-      #      full default scanner set.  This step is the actual gate
-      #      (exit-code: 1 on fixable CRITICAL/HIGH).
-      - name: Trivy scan (human-readable log)
-        uses: aquasecurity/trivy-action@v0.35.0
-        with:
-          image-ref: local/scan-target:${{ github.sha }}
-          format: table
-          severity: CRITICAL,HIGH
-          exit-code: "0"
-          ignore-unfixed: true
-          vuln-type: os,library
-          scanners: vuln
-
-      - name: Trivy vulnerability scan
-        uses: aquasecurity/trivy-action@v0.35.0
-        with:
-          image-ref: local/scan-target:${{ github.sha }}
-          format: sarif
-          output: trivy-results.sarif
-          severity: CRITICAL,HIGH
-          exit-code: "1"
-          ignore-unfixed: true
-          vuln-type: os,library
-
-      - name: Upload Trivy SARIF to GitHub Security
-        if: always()
-        uses: github/codeql-action/upload-sarif@v3
-        with:
-          sarif_file: trivy-results.sarif
-          category: trivy
-
-      # Only reached if the scan passed.
-      # P5: also request SBOM and SLSA provenance attestations.
-      #     build-push-action attaches them to the image in the registry
-      #     as in-toto attestations (no separate syft/cosign-attest step).
+      # Trivy CVE scan already ran in validate (same Dockerfile, same
+      # commit, same base image digests). Go straight to multi-arch
+      # push with SBOM + SLSA provenance attestations attached.
       - name: Build and push multi-arch image
         id: push
         uses: docker/build-push-action@v6
@@ -150,11 +137,6 @@ jobs:
           sbom: true
           provenance: mode=max
 
-      # ---------------------------------------------------------------
-      # P5: Sign the pushed image keyless via sigstore.
-      # SBOM and provenance are produced by build-push-action above;
-      # this step adds the image-level signature on top of that.
-      # ---------------------------------------------------------------
       - name: Install cosign
         uses: sigstore/cosign-installer@v4.1.1
 
@@ -168,10 +150,9 @@ jobs:
           cosign sign "$image_ref"
 
   # -------------------------------------------------------------------
-  # P5 verification: re-verify our own signature on the pushed image.
-  # Smoke test so that a signing misconfiguration is caught here,
-  # not by a downstream consumer.  Uses the digest output from the
-  # build-and-push job for a precise, unambiguous reference.
+  # Smoke-test: re-verify the signature we just produced, against the
+  # expected workflow identity (tag-push only). Catches signing
+  # misconfiguration here rather than in a downstream consumer.
   # -------------------------------------------------------------------
   verify-published-image:
     name: Verify our own signature
