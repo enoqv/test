@@ -11,7 +11,7 @@ services:
       - pgdata:/var/lib/postgresql/data
 
   redis:
-    image: redis:7.2-alpine@sha256:5f8bafd0669a697ee564ad825c2a63e6b60b0a67c02b0089f8a250051ab6fe85
+    image: redis:7.4-alpine@sha256:8b81dd37ff027bec4e516d41acfbe9fe2460070dc6d4a4570a2ac5b9d59df065
     ports:
       - "6379:6379"
 
