@@ -39,7 +39,8 @@
   "vulnerabilityAlerts": {
     "labels": ["security", "dependencies"],
     "schedule": [],
-    "minimumReleaseAge": null
+    "minimumReleaseAge": null,
+    "dependencyDashboardApproval": false
   },
 
   "packageRules": [
@@ -58,8 +59,9 @@
       "groupName": "container base images"
     },
     {
-      "description": "Tag major-version bumps for easy triage in the PR list.",
+      "description": "Major bumps are listed on the Dependency Dashboard as approval checkboxes -- no PR is opened until you tick the box. This avoids PR spam from major releases while keeping full visibility. vulnerabilityAlerts above overrides this (dependencyDashboardApproval: false there) so CVE-driven major upgrades still open a PR directly.",
       "matchUpdateTypes": ["major"],
+      "dependencyDashboardApproval": true,
       "labels": ["dependencies", "major-update"]
     }
   ]
