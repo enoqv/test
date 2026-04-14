@@ -145,6 +145,25 @@
       "matchUpdateTypes": ["major"],
       "dependencyDashboardApproval": true,
       "labels": ["dependencies", "major-update"]
+    },
+
+    // Go versions its releases 1.22, 1.23, 1.24... where each "minor"
+    // bump in Renovate's classification is effectively a major in Go's
+    // release cycle: new language / stdlib features, potential source
+    // or behavioural incompatibilities, and a required migration
+    // audit. Route these through Dependency Dashboard approval the
+    // same way cross-major Docker bumps are routed, instead of auto-
+    // opening a PR. Patch releases (1.22.9 -> 1.22.10) are unaffected
+    // and continue to land as digest / patch PRs.
+    //
+    // vulnerabilityAlerts above still overrides this, so a CVE-driven
+    // Go minor bump opens a PR directly without waiting for approval.
+    {
+      "description": "Go minor bumps (1.X -> 1.Y) require Dashboard approval.",
+      "matchPackageNames": ["golang", "docker.io/library/golang"],
+      "matchUpdateTypes": ["minor"],
+      "dependencyDashboardApproval": true,
+      "labels": ["dependencies", "golang-minor-update"]
     }
   ]
 }
