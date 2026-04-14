@@ -8,12 +8,21 @@
   //   - :pinDevDependencies
   //   - abandonments:recommended
   //   - security:minimumReleaseAgeNpm
-  // Plus the two explicit presets we want: Dependency Dashboard issue
-  // and conventional commit messages on generated PRs.
+  // Plus the three explicit presets we want:
+  //   - :dependencyDashboard: Renovate maintains a "Dependency Dashboard"
+  //     issue that lists all pending / blocked / awaiting-approval updates.
+  //   - :semanticCommits: emit conventional-commits-style messages on PRs.
+  //   - helpers:pinGitHubActionDigestsToSemver: overrides the non-semver
+  //     helpers:pinGitHubActionDigests brought in by config:best-practices
+  //     so the inline comment next to a pinned SHA is the precise semver
+  //     (# v4.2.3) instead of the floating tag that was originally written
+  //     (# v4). Makes the pinned version visible at a glance in review /
+  //     git history / CVE advisory cross-check.
   "extends": [
     "config:best-practices",
     ":dependencyDashboard",
-    ":semanticCommits"
+    ":semanticCommits",
+    "helpers:pinGitHubActionDigestsToSemver"
   ],
 
   "timezone": "Asia/Taipei",
