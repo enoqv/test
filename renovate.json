@@ -42,10 +42,15 @@
   // accident. Every Renovate PR requires a human merge.
   "automerge": false,
 
-  // prHourlyLimit: 2 matches the config:recommended default. With
-  // minimumReleaseAge set below this rarely bites; it is mostly a guard
-  // against a surprise burst of PRs after a long quiet period.
-  "prHourlyLimit": 2,
+  // prHourlyLimit: cap PR creation rate at 10 per hour. Bumped up from
+  // the config:recommended default of 2 because the default was leaving
+  // updates stuck in a "branch limit reached" deferred state without
+  // them appearing in the Dependency Dashboard's Rate-Limited section
+  // (Renovate skips branch creation entirely when the hourly limit is
+  // hit, so there is no Rate-Limited entry to surface). 10 lets a
+  // typical run drain its backlog in one go while still capping a
+  // pathological burst.
+  "prHourlyLimit": 10,
 
   // prConcurrentLimit: cap total open Renovate PRs at 10.
   "prConcurrentLimit": 10,
