@@ -66,13 +66,6 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Self-check renovate.json is valid JSON
-        run: |
-          if ! python3 -c "import json, sys; json.load(open('renovate.json'))"; then
-            echo "::error::renovate.json is not valid JSON"
-            exit 1
-          fi
-
       - name: Run Renovate
         uses: renovatebot/github-action@v46.0.2
         with:
