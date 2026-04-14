@@ -56,7 +56,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
         with:
-          go-version: "1.25.9"
+          go-version-file: go.mod
           cache: true
 
       - name: Download modules
@@ -74,17 +74,31 @@ jobs:
           name: coverage
           path: coverage.out
 
-      # govulncheck is Go's official vulnerability scanner. Unlike Trivy
-      # (which reports every CVE in a Go binary's transitive dependency
-      # set), govulncheck only flags CVEs whose vulnerable symbols are
-      # actually reachable from our code. For the common case of stdlib
-      # CVEs it dramatically cuts noise. Fails on any reported
-      # vulnerability; CVE fixes should arrive via go.mod bumps or a
-      # Go-version upgrade (handled by Renovate).
-      - name: Vulnerability check (govulncheck)
-        run: |
-          go install golang.org/x/vuln/cmd/govulncheck@latest
-          govulncheck ./...
+  # -------------------------------------------------------------------
+  # govulncheck: Go's official reachability-aware vulnerability scanner.
+  # Unlike Trivy (which reports every CVE in a Go binary's transitive
+  # dependency set), govulncheck only flags CVEs whose vulnerable symbols
+  # are actually reachable from our code. For stdlib CVEs it dramatically
+  # cuts noise.  Fails on any reported vulnerability; fixes arrive via
+  # go.mod bumps or a Go-version upgrade (handled by Renovate).
+  #
+  # Uses the official golang/govulncheck-action rather than
+  # `go install ... @latest` so the tool version is itself pinned to a
+  # SHA (kept up to date by Renovate with every other pinned action).
+  # -------------------------------------------------------------------
+  govulncheck:
+    name: Govulncheck (Go vulnerability reachability)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+
+      - name: Run govulncheck
+        uses: golang/govulncheck-action@b625fbe08f3bccbe446d94fbf87fcc875a4f50ee # v1.0.4
+        with:
+          go-version-file: go.mod
 
   # -------------------------------------------------------------------
   # P3: Verify cosign/sigstore signatures of pinned base images against

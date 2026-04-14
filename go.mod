@@ -2,6 +2,8 @@ module github.com/enoqv/test
 
 go 1.25
 
+toolchain go1.25.9
+
 require (
 	github.com/go-chi/chi/v5 v5.1.0
 	github.com/golang-jwt/jwt/v5 v5.2.1
