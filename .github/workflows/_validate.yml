@@ -99,6 +99,12 @@ jobs:
         uses: golang/govulncheck-action@b625fbe08f3bccbe446d94fbf87fcc875a4f50ee # v1.0.4
         with:
           go-version-file: go.mod
+          # The action's default `repo-checkout: true` runs git inside the
+          # action itself. Since actions/checkout@v6 persists credentials to
+          # a separate includeIf'd file, that inner git call picks up a bad
+          # auth header and GitHub returns HTTP 400. We already checked out
+          # above, so skip the action's redundant second checkout.
+          repo-checkout: false
 
   # -------------------------------------------------------------------
   # P3: Verify cosign/sigstore signatures of pinned base images against
