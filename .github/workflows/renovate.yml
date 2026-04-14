@@ -7,10 +7,19 @@ name: Renovate
 # Prerequisites (one-time setup):
 #
 #   1. Create a Personal Access Token (or GitHub App installation token)
-#      with scopes:
-#          contents: write      (create branches, push commits)
-#          pull-requests: write (open / update / close PRs)
-#          workflows: write     (update .github/workflows/*.yml files)
+#      with these fine-grained PAT permissions (the names below are the
+#      labels shown in the PAT settings UI):
+#          Contents:        Read and write   (create branches, push commits)
+#          Pull requests:   Read and write   (open / update / close PRs)
+#          Workflows:       Read and write   (update .github/workflows/*.yml
+#                                             files; GITHUB_TOKEN cannot)
+#          Commit statuses: Read and write   (set the renovate/stability-days
+#                                             commit status that tracks
+#                                             minimumReleaseAge; without
+#                                             this the run aborts with a
+#                                             misleading "Repository has
+#                                             changed during renovation"
+#                                             error)
 #      A fine-grained PAT is recommended; restrict to just this repo.
 #
 #   2. Save it as a repository secret named RENOVATE_TOKEN.
