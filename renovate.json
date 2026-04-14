@@ -17,11 +17,11 @@
     "    is already false, but setting it explicitly makes the intent",
     "    unambiguous and prevents an accidental override from a preset",
     "    or future packageRule slipping auto-merge in.",
-    "  - minimumReleaseAge is 30 days globally. A new version has to sit",
-    "    in the wild for a month before Renovate will even open a PR for it.",
+    "  - minimumReleaseAge is 15 days globally. A new version has to sit",
+    "    in the wild for two weeks before Renovate will even open a PR for it.",
     "    vulnerabilityAlerts overrides this to null so CVE fixes are not gated.",
     "  - prHourlyLimit: 2 matches the config:recommended default. With the",
-    "    30-day wait this rarely bites; it is mostly a guard against surprise",
+    "    15-day wait this rarely bites; it is mostly a guard against surprise",
     "    bursts.",
     "  - prConcurrentLimit: 10 caps how many Renovate PRs can be open at once.",
     "  - pinDigests forces Docker FROM and GitHub Actions references to be",
@@ -34,7 +34,7 @@
 
   "pinDigests": true,
   "postUpdateOptions": ["gomodTidy"],
-  "minimumReleaseAge": "30 days",
+  "minimumReleaseAge": "15 days",
 
   "vulnerabilityAlerts": {
     "labels": ["security", "dependencies"],
