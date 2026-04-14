@@ -1,0 +1,136 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+
+  // Mend-curated "best practices" baseline. It pulls in, among others:
+  //   - docker:pinDigests               (pin FROM image:tag -> image:tag@sha256:...)
+  //   - helpers:pinGitHubActionDigests  (pin uses: owner/action@v1 -> @<sha> # v1)
+  //   - :maintainLockFilesWeekly
+  //   - :pinDevDependencies
+  //   - abandonments:recommended
+  //   - security:minimumReleaseAgeNpm
+  // Plus the two explicit presets we want: Dependency Dashboard issue
+  // and conventional commit messages on generated PRs.
+  "extends": [
+    "config:best-practices",
+    ":dependencyDashboard",
+    ":semanticCommits",
+  ],
+
+  "timezone": "Asia/Taipei",
+
+  // Temporarily disabled while iterating on config so Renovate can open
+  // PRs at any time (not only Monday mornings). Re-enable by uncommenting
+  // once the configuration settles.
+  // "schedule": ["before 9am on monday"],
+
+  "labels": ["dependencies"],
+
+  // --- PR flow ---------------------------------------------------------
+
+  // automerge: explicitly false at the top level. Renovate's default is
+  // already false, but writing it makes intent unambiguous and prevents
+  // a preset or a future packageRule from flipping auto-merge on by
+  // accident. Every Renovate PR requires a human merge.
+  "automerge": false,
+
+  // prHourlyLimit: 2 matches the config:recommended default. With
+  // minimumReleaseAge set below this rarely bites; it is mostly a guard
+  // against a surprise burst of PRs after a long quiet period.
+  "prHourlyLimit": 2,
+
+  // prConcurrentLimit: cap total open Renovate PRs at 10.
+  "prConcurrentLimit": 10,
+
+  // --- Pinning & tidy --------------------------------------------------
+
+  // pinDigests: transform tags like `@v4` or `:alpine` into pinned SHA
+  // references. The actual pinning behaviour is delivered by the
+  // docker:pinDigests / helpers:pinGitHubActionDigests presets pulled
+  // in by config:best-practices; this line makes the intent explicit.
+  "pinDigests": true,
+
+  // After a gomod update, run `go mod tidy` in the PR branch so go.sum
+  // stays in sync with the new version.
+  "postUpdateOptions": ["gomodTidy"],
+
+  // --- Stability / supply-chain gate -----------------------------------
+
+  // minimumReleaseAge: a newly released version must sit in the wild
+  // for this long before Renovate will open a PR for it. Buys a window
+  // for the community to catch malicious releases (event-stream,
+  // ua-parser-js, the 2026-03 Trivy action compromise were all
+  // detected within days). vulnerabilityAlerts below overrides this
+  // to null so CVE fixes are never delayed by the age gate.
+  "minimumReleaseAge": "15 days",
+
+  // internalChecksFilter: controls what Renovate does when the LATEST
+  // candidate version for a package does NOT yet satisfy
+  // minimumReleaseAge.
+  //
+  //   - "strict" (Renovate default): if the latest candidate fails
+  //     the age check, Renovate waits -- no branch, no PR, no fallback
+  //     to an older-but-aged version. Cleanest PR list, but on
+  //     packages that release frequently you can end up "always
+  //     waiting" because a new candidate keeps resetting the age
+  //     clock, so you never see a PR at all.
+  //
+  //   - "flexible": if the latest candidate is too new, Renovate falls
+  //     back to the newest candidate that HAS met the age requirement
+  //     and opens a PR for that. When the newer candidate matures
+  //     Renovate rebases the PR (or opens a new one). Some PR noise /
+  //     rebasing, but guarantees we keep getting timely patch/security
+  //     updates even on fast-moving packages.
+  //
+  // We choose "flexible" so a rapidly-releasing upstream cannot
+  // indefinitely deprive us of a patch that has already matured.
+  "internalChecksFilter": "flexible",
+
+  // --- Vulnerability alerts overlay ------------------------------------
+  // Triggered when an advisory (OSV / GHSA / GitHub) matches a current
+  // dependency. Applied as a force-overlay on top of packageRules, so
+  // anything set here wins. Null / empty values disable the
+  // corresponding gate for vuln-driven updates only.
+  "vulnerabilityAlerts": {
+    "labels": ["security", "dependencies"],
+    "schedule": [],                       // bypass any scheduling
+    "minimumReleaseAge": null,            // bypass the release-age wait
+    "dependencyDashboardApproval": false, // bypass the Dashboard approval gate
+  },
+
+  "packageRules": [
+    // Tightly coupled sibling packages from the jackc org -- they are
+    // released together, and merging one at a time tends to break
+    // go.sum resolution. One grouped PR instead of four.
+    {
+      "description": "Group jackc (pgx) packages.",
+      "matchPackageNames": ["github.com/jackc/**"],
+      "groupName": "jackc (pgx)",
+    },
+
+    // Both base images get weekly digest refreshes from their upstream
+    // publishers; one grouped PR is less noise than two separate PRs
+    // that always land at the same time anyway.
+    {
+      "description": "Group container base images (Go builder + distroless runtime).",
+      "matchPackageNames": [
+        "golang",
+        "docker.io/library/golang",
+        "gcr.io/distroless/static-debian12",
+      ],
+      "groupName": "container base images",
+    },
+
+    // Major bumps do not auto-open a PR. They appear on the Dependency
+    // Dashboard as approval checkboxes; ticking the box tells Renovate
+    // to open a real PR. Avoids PR spam from cross-major releases
+    // (postgres 16 -> 18, redis 7 -> 8, go-chi v5 -> v6, etc.).
+    // vulnerabilityAlerts above overrides this so CVE-driven major
+    // upgrades still open a PR directly.
+    {
+      "description": "Major bumps go through Dependency Dashboard approval.",
+      "matchUpdateTypes": ["major"],
+      "dependencyDashboardApproval": true,
+      "labels": ["dependencies", "major-update"],
+    },
+  ],
+}
