@@ -16,8 +16,6 @@ One-time setup on a fresh clone/fork:
      `renovate/stability-days` commit status to track the `minimumReleaseAge`
      window; without this the run aborts with a misleading "Repository has
      changed during renovation" error)
-   - **Dependabot alerts**: Read-only  (required for the `vulnerabilityAlerts`
-     overlay in `renovate.json` to fire — see *Vulnerability-driven PRs* below)
 2. Add it as a repository secret named `RENOVATE_TOKEN`.
 3. The workflow then runs every 6 hours (at 00:00 / 06:00 / 12:00 / 18:00 UTC)
    and can also be triggered manually via the Actions tab, with an optional
@@ -25,24 +23,24 @@ One-time setup on a fresh clone/fork:
 
 ## Vulnerability-driven PRs
 
-Renovate has **two independent vulnerability channels**, and they use
-different data sources. Enabling both gives the best coverage; each by
-itself has blind spots.
+Renovate has **two independent vulnerability channels**. They use
+different data sources and have different setup costs. This repo
+currently enables **only the OSV channel** (the zero-setup one); the
+GHSA channel is documented below as an optional upgrade.
 
-| Channel                   | Data source                           | Enabled by                                                 |
-| ------------------------- | ------------------------------------- | ---------------------------------------------------------- |
-| `vulnerabilityAlerts`     | **GitHub Dependabot alerts** (GHSA)   | GitHub repo settings + PAT permission (see below)          |
-| `osvVulnerabilityAlerts`  | **[OSV.dev](https://osv.dev/)**       | `"osvVulnerabilityAlerts": true` in `renovate.json`        |
+| Channel                   | Data source                           | Status          | Setup                                                      |
+| ------------------------- | ------------------------------------- | --------------- | ---------------------------------------------------------- |
+| `osvVulnerabilityAlerts`  | **[OSV.dev](https://osv.dev/)**       | **enabled**     | `"osvVulnerabilityAlerts": true` in `renovate.json`        |
+| `vulnerabilityAlerts`     | **GitHub Dependabot alerts** (GHSA)   | not enabled     | GitHub repo settings + PAT permission (see *Optional* below) |
 
 The OSV channel is the same data source that `govulncheck` (run in CI)
 queries against `vuln.go.dev`, so enabling it keeps Renovate and
 `govulncheck` aligned: if `govulncheck` fails the build on a CVE,
 Renovate should already have (or shortly open) a fix PR for the same
-advisory. The GHSA channel occasionally has curated GitHub-only advisories
-that OSV has not yet picked up, and vice-versa.
+advisory.
 
 Quoting the [official docs](https://docs.renovatebot.com/configuration-options/#vulnerabilityalerts)
-on what a `vulnerabilityAlerts` PR bypasses:
+on what a vulnerability-alert PR bypasses:
 
 > When Renovate creates a `vulnerabilityAlerts` PR, it ignores settings
 > like `branchConcurrentLimit`, `commitHourlyLimit`, `prConcurrentLimit`,
@@ -50,45 +48,67 @@ on what a `vulnerabilityAlerts` PR bypasses:
 > "skip the line".
 
 That means CVE fixes are never delayed by `minimumReleaseAge: 15 days`,
-the hourly PR cap, or the Dependency Dashboard approval gate.
+the hourly PR cap, or the Dependency Dashboard approval gate. The same
+overlay applies to OSV-driven PRs.
 
-**Required setup for the GHSA channel** (per
+### OSV channel (active)
+
+Already configured in `renovate.json` as `"osvVulnerabilityAlerts": true`.
+No GitHub setting needed. No PAT permission needed. Renovate downloads
+the OSV database locally via
+[renovate-offline](https://github.com/renovatebot/osv-offline) and
+queries it offline each run.
+
+Per the [official docs](https://docs.renovatebot.com/configuration-options/#osvvulnerabilityalerts),
+coverage is limited to:
+
+- **Direct dependencies only.** Transitive / `// indirect` entries in
+  `go.mod` are not surfaced as vuln PRs (though `govulncheck` still
+  catches reachable transitive CVEs at CI time).
+- Datasources forwarded to OSV: `go`, `npm`, `maven`, `pypi`, `crate`,
+  `hex`, `hackage`, `nuget`, `packagist`, `rubygems`. The Go module
+  tree in this repo is fully covered.
+
+### GHSA channel (optional upgrade)
+
+Adds coverage for transitive dependencies and any GHSA-curated
+advisories that OSV has not yet picked up. Also surfaces the repo's
+vulnerabilities in the GitHub **Security** tab and sends maintainer
+email alerts, independently of Renovate.
+
+To enable (per
 [Renovate docs](https://docs.renovatebot.com/configuration-options/#vulnerabilityalerts)):
 
 1. Repo → **Settings → Code security** (formerly "Advanced Security"):
    - Enable **Dependency graph**.
    - Enable **Dependabot alerts**.
-   - (Without both of these, GitHub has no alert feed for Renovate to
-     read, and the `vulnerabilityAlerts` overlay in `renovate.json` stays
-     inert — vulnerability-driven PRs look identical to regular dep bumps,
-     with the `dependencies` label but no `security` label.)
-2. Add **Dependabot alerts: Read-only** to the `RENOVATE_TOKEN` PAT
-   (listed in the PAT permissions block above). For a Renovate GitHub App
-   deployment, the equivalent permission is `vulnerability_alerts: read`.
+2. Add **Dependabot alerts: Read-only** to the `RENOVATE_TOKEN` PAT.
+   For a Renovate GitHub App deployment, the equivalent permission is
+   `vulnerability_alerts: read`.
+3. Don't forget to also add the new permission to the PAT permission
+   list at the top of this doc when you do this.
 
-**Required setup for the OSV channel:**
+No change to `renovate.json` is needed — the existing `vulnerabilityAlerts`
+overlay block at `renovate.json:107` already configures the output
+side (labels, schedule bypass, release-age bypass); it only sits idle
+today because Renovate cannot read GitHub's alert feed.
 
-Add this line to `renovate.json` (default is `false`):
-
-```json
-"osvVulnerabilityAlerts": true
-```
-
-OSV coverage is limited to *direct* dependencies, and only for the
-datasources Renovate forwards to OSV — `go`, `npm`, `maven`, `pypi`,
-`crate`, `hex`, `hackage`, `nuget`, `packagist`, `rubygems`. The Go
-module tree in this repo is fully covered.
-
-**Verifying it works:**
+### Verifying it works
 
 Trigger `Renovate` via **Actions → Renovate → Run workflow** with
 `logLevel: debug`. In the log you should see entries like:
 
 ```
-DEBUG: Found N vulnerability alerts
 DEBUG: Matched OSV vulnerabilities for <package>
 ```
 
-And any CVE-driven PR will carry the `security` label (set by the
-`vulnerabilityAlerts` overlay at `renovate.json`). If no PR ever carries
-the `security` label, one of the two channels above is still misconfigured.
+And once the GHSA channel is also enabled:
+
+```
+DEBUG: Found N vulnerability alerts
+```
+
+Any CVE-driven PR will carry the `security` label (set by the
+`vulnerabilityAlerts` overlay at `renovate.json`). If `govulncheck`
+reports a CVE in CI but no PR ever carries the `security` label after
+the next Renovate run, the active channel is misconfigured.

@@ -104,6 +104,27 @@
   // dependency. Applied as a force-overlay on top of packageRules, so
   // anything set here wins. Null / empty values disable the
   // corresponding gate for vuln-driven updates only.
+  //
+  // Two independent channels feed this overlay:
+  //
+  //   1. osvVulnerabilityAlerts (enabled below):
+  //      Renovate downloads the OSV.dev database locally via
+  //      renovate-offline and queries it offline. Covers DIRECT
+  //      dependencies only, but requires zero GitHub setup and zero
+  //      extra PAT permissions. Same data source as govulncheck
+  //      (vuln.go.dev is an OSV mirror), so CI and Renovate stay
+  //      aligned on Go CVEs.
+  //
+  //   2. vulnerabilityAlerts via GitHub Dependabot alerts (NOT enabled):
+  //      Requires the repo to have Dependency graph + Dependabot
+  //      alerts switched on in Settings -> Code security, AND the
+  //      RENOVATE_TOKEN PAT to have "Dependabot alerts: Read-only".
+  //      Would add coverage for TRANSITIVE deps and GHSA-curated
+  //      advisories that OSV has not yet picked up. Left off for now
+  //      to minimize setup cost; see docs/renovate.md for how to
+  //      enable it later.
+  "osvVulnerabilityAlerts": true,
+
   "vulnerabilityAlerts": {
     "labels": ["security", "dependencies"],
     "schedule": [],                       // bypass any scheduling
