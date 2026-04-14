@@ -12,6 +12,7 @@ env:
 
 permissions:
   contents: read
+  id-token: write  # P5: required for keyless cosign signing via GitHub OIDC
 
 jobs:
   # -------------------------------------------------------------------
@@ -113,13 +114,14 @@ jobs:
   # Build multi-arch image, push to GHCR, then P4: Trivy CVE scan.
   # -------------------------------------------------------------------
   build-and-push:
-    name: Build, scan and push multi-arch image
+    name: Build, scan, push, sign and attest multi-arch image
     runs-on: ubuntu-latest
     needs: [lint, test, verify-base-images]
     permissions:
       contents: read
       packages: write
       security-events: write
+      id-token: write  # P5: keyless cosign signing
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -202,6 +204,9 @@ jobs:
           category: trivy
 
       # P4 step 2: Only reached if the scan passed.
+      # P5: also request SBOM and SLSA provenance attestations.
+      #     build-push-action attaches them to the image in the registry
+      #     as in-toto attestations (no separate syft/cosign-attest step).
       - name: Build and push multi-arch image
         id: push
         uses: docker/build-push-action@v6
@@ -214,3 +219,57 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+          sbom: true
+          provenance: mode=max
+
+      # ---------------------------------------------------------------
+      # P5: Sign the pushed image keyless via sigstore.
+      # SBOM and provenance are produced by build-push-action above;
+      # this step adds the image-level signature on top of that.
+      # ---------------------------------------------------------------
+      - name: Install cosign
+        uses: sigstore/cosign-installer@v4.1.1
+
+      - name: Sign image (keyless)
+        env:
+          COSIGN_YES: "true"
+        run: |
+          set -euo pipefail
+          digest="${{ steps.push.outputs.digest }}"
+          image_ref="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${digest}"
+          echo "Signing $image_ref"
+          cosign sign "$image_ref"
+
+  # -------------------------------------------------------------------
+  # P5 verification: re-verify our own signature on the pushed image.
+  # Smoke test so that a signing misconfiguration is caught here,
+  # not by a downstream consumer.
+  # -------------------------------------------------------------------
+  verify-published-image:
+    name: Verify our own signature
+    runs-on: ubuntu-latest
+    needs: build-and-push
+    if: github.event_name == 'push'
+    permissions:
+      contents: read
+      packages: read
+      id-token: write
+    steps:
+      - name: Install cosign
+        uses: sigstore/cosign-installer@v4.1.1
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Verify signature
+        run: |
+          set -euo pipefail
+          ref="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:sha-$(echo ${{ github.sha }} | cut -c1-7)"
+          cosign verify \
+            --certificate-oidc-issuer='https://token.actions.githubusercontent.com' \
+            --certificate-identity-regexp="^https://github\.com/${{ github.repository }}/\.github/workflows/.+@refs/" \
+            "$ref"
