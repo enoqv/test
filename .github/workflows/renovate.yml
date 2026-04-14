@@ -13,6 +13,10 @@ name: Renovate
 #          Pull requests:   Read and write   (open / update / close PRs)
 #          Workflows:       Read and write   (update .github/workflows/*.yml
 #                                             files; GITHUB_TOKEN cannot)
+#          Issues:          Read and write   (maintain the Dependency
+#                                             Dashboard issue; without
+#                                             this runs log "Could not
+#                                             ensure issue ... 403")
 #          Commit statuses: Read and write   (set the renovate/stability-days
 #                                             commit status that tracks
 #                                             minimumReleaseAge; without

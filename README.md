@@ -80,6 +80,9 @@ One-time setup on a fresh clone/fork:
    - **Contents**: Read and write
    - **Pull requests**: Read and write
    - **Workflows**: Read and write  (required — `GITHUB_TOKEN` cannot edit workflow files)
+   - **Issues**: Read and write  (required — Renovate maintains the
+     `Dependency Dashboard` issue; without this, Renovate runs log
+     `Could not ensure issue ... 403 Resource not accessible`)
    - **Commit statuses**: Read and write  (required — Renovate writes a
      `renovate/stability-days` commit status to track the `minimumReleaseAge`
      window; without this the run aborts with a misleading "Repository has
