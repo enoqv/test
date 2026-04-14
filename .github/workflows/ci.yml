@@ -1,9 +1,9 @@
 name: CI
 
 # Runs on every PR to main and every push to main. Validates the change
-# (lint + test + base-image signatures) but does NOT build or push an
-# image. The image release pipeline lives in .github/workflows/release.yml
-# and triggers only on v*.*.* tags.
+# (lint + test + base-image signatures + CVE scan) but does NOT push
+# an image anywhere. The image release pipeline lives in
+# .github/workflows/release.yml and triggers only on v*.*.* tags.
 
 on:
   push:
@@ -109,3 +109,67 @@ jobs:
 
       - name: Verify all FROM base images against policy
         run: bash .github/scripts/verify-base-images.sh Dockerfile
+
+  # -------------------------------------------------------------------
+  # P4: Trivy CVE scan on PRs and main pushes.
+  #
+  # The same scan runs again in release.yml just before multi-arch push
+  # (as the actual gate keeping vulnerable images out of the registry).
+  # Running it here too catches CVEs during review, not at release time.
+  #
+  # Builds an amd64 image into the local docker daemon for scanning --
+  # no registry push from this workflow.
+  # -------------------------------------------------------------------
+  scan:
+    name: Trivy CVE scan
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write   # upload SARIF to GitHub code scanning
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build local image for scanning
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          load: true
+          tags: local/scan-target:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # See release.yml for the rationale on running Trivy twice
+      # (public-safe table to stdout; full-scanner SARIF to Security tab).
+      - name: Trivy scan (human-readable log)
+        uses: aquasecurity/trivy-action@v0.35.0
+        with:
+          image-ref: local/scan-target:${{ github.sha }}
+          format: table
+          severity: CRITICAL,HIGH
+          exit-code: "0"
+          ignore-unfixed: true
+          vuln-type: os,library
+          scanners: vuln
+
+      - name: Trivy vulnerability scan
+        uses: aquasecurity/trivy-action@v0.35.0
+        with:
+          image-ref: local/scan-target:${{ github.sha }}
+          format: sarif
+          output: trivy-results.sarif
+          severity: CRITICAL,HIGH
+          exit-code: "1"
+          ignore-unfixed: true
+          vuln-type: os,library
+
+      - name: Upload Trivy SARIF to GitHub Security
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: trivy-results.sarif
+          category: trivy
