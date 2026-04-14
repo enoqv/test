@@ -13,7 +13,7 @@
   "extends": [
     "config:best-practices",
     ":dependencyDashboard",
-    ":semanticCommits",
+    ":semanticCommits"
   ],
 
   "timezone": "Asia/Taipei",
@@ -94,7 +94,7 @@
     "labels": ["security", "dependencies"],
     "schedule": [],                       // bypass any scheduling
     "minimumReleaseAge": null,            // bypass the release-age wait
-    "dependencyDashboardApproval": false, // bypass the Dashboard approval gate
+    "dependencyDashboardApproval": false  // bypass the Dashboard approval gate
   },
 
   "packageRules": [
@@ -104,7 +104,7 @@
     {
       "description": "Group jackc (pgx) packages.",
       "matchPackageNames": ["github.com/jackc/**"],
-      "groupName": "jackc (pgx)",
+      "groupName": "jackc (pgx)"
     },
 
     // Both base images get weekly digest refreshes from their upstream
@@ -115,9 +115,9 @@
       "matchPackageNames": [
         "golang",
         "docker.io/library/golang",
-        "gcr.io/distroless/static-debian12",
+        "gcr.io/distroless/static-debian12"
       ],
-      "groupName": "container base images",
+      "groupName": "container base images"
     },
 
     // Major bumps do not auto-open a PR. They appear on the Dependency
@@ -130,7 +130,7 @@
       "description": "Major bumps go through Dependency Dashboard approval.",
       "matchUpdateTypes": ["major"],
       "dependencyDashboardApproval": true,
-      "labels": ["dependencies", "major-update"],
-    },
-  ],
+      "labels": ["dependencies", "major-update"]
+    }
+  ]
 }
