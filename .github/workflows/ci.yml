@@ -1,18 +1,18 @@
 name: CI
 
+# Runs on every PR to main and every push to main. Validates the change
+# (lint + test + base-image signatures) but does NOT build or push an
+# image. The image release pipeline lives in .github/workflows/release.yml
+# and triggers only on v*.*.* tags.
+
 on:
   push:
     branches: [main]
   pull_request:
     branches: [main]
 
-env:
-  REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository }}
-
 permissions:
   contents: read
-  id-token: write  # P5: required for keyless cosign signing via GitHub OIDC
 
 jobs:
   # -------------------------------------------------------------------
@@ -53,7 +53,7 @@ jobs:
           echo "All FROM instructions are pinned to a digest."
 
   # -------------------------------------------------------------------
-  # Go unit tests (unchanged).
+  # Go unit tests.
   # -------------------------------------------------------------------
   test:
     name: Test
@@ -109,167 +109,3 @@ jobs:
 
       - name: Verify all FROM base images against policy
         run: bash .github/scripts/verify-base-images.sh Dockerfile
-
-  # -------------------------------------------------------------------
-  # Build multi-arch image, push to GHCR, then P4: Trivy CVE scan.
-  # -------------------------------------------------------------------
-  build-and-push:
-    name: Build, scan, push, sign and attest multi-arch image
-    runs-on: ubuntu-latest
-    needs: [lint, test, verify-base-images]
-    permissions:
-      contents: read
-      packages: write
-      security-events: write
-      id-token: write  # P5: keyless cosign signing
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Log in to GHCR
-        uses: docker/login-action@v3
-        with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Extract metadata
-        id: meta
-        uses: docker/metadata-action@v5
-        with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
-          tags: |
-            type=ref,event=branch
-            type=ref,event=pr
-            type=sha,format=short
-            type=raw,value=latest,enable={{is_default_branch}}
-
-      # P4 step 1: Build a local single-arch image for scanning first.
-      # Trivy needs a concrete image to scan; scanning before push means
-      # vulnerable images never reach the registry.
-      - name: Build local image for scanning
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: ./Dockerfile
-          load: true
-          tags: local/scan-target:${{ github.sha }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
-      # Trivy runs twice by design:
-      #   1. "table" format to stdout for human-readable CI log output.
-      #      Scanners are restricted to vuln only -- secret scanning
-      #      stays off here because this log is publicly viewable on
-      #      a public repo and we do not want any accidental secret
-      #      detection to be broadcast to the world.  exit-code: 0 so
-      #      this step never blocks; it is purely informational.
-      #   2. "sarif" format into trivy-results.sarif, uploaded to the
-      #      GitHub Security tab (which is access-restricted), with the
-      #      full default scanner set.  This step is the actual gate
-      #      (exit-code: 1 on fixable CRITICAL/HIGH).
-      - name: Trivy scan (human-readable log)
-        uses: aquasecurity/trivy-action@v0.35.0
-        with:
-          image-ref: local/scan-target:${{ github.sha }}
-          format: table
-          severity: CRITICAL,HIGH
-          exit-code: "0"
-          ignore-unfixed: true
-          vuln-type: os,library
-          scanners: vuln
-
-      - name: Trivy vulnerability scan
-        uses: aquasecurity/trivy-action@v0.35.0
-        with:
-          image-ref: local/scan-target:${{ github.sha }}
-          format: sarif
-          output: trivy-results.sarif
-          severity: CRITICAL,HIGH
-          exit-code: "1"
-          ignore-unfixed: true
-          vuln-type: os,library
-
-      - name: Upload Trivy SARIF to GitHub Security
-        if: always()
-        uses: github/codeql-action/upload-sarif@v3
-        with:
-          sarif_file: trivy-results.sarif
-          category: trivy
-
-      # P4 step 2: Only reached if the scan passed.
-      # P5: also request SBOM and SLSA provenance attestations.
-      #     build-push-action attaches them to the image in the registry
-      #     as in-toto attestations (no separate syft/cosign-attest step).
-      - name: Build and push multi-arch image
-        id: push
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: ./Dockerfile
-          platforms: linux/amd64,linux/arm64
-          push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-          sbom: true
-          provenance: mode=max
-
-      # ---------------------------------------------------------------
-      # P5: Sign the pushed image keyless via sigstore.
-      # SBOM and provenance are produced by build-push-action above;
-      # this step adds the image-level signature on top of that.
-      # ---------------------------------------------------------------
-      - name: Install cosign
-        uses: sigstore/cosign-installer@v4.1.1
-
-      - name: Sign image (keyless)
-        env:
-          COSIGN_YES: "true"
-        run: |
-          set -euo pipefail
-          digest="${{ steps.push.outputs.digest }}"
-          image_ref="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${digest}"
-          echo "Signing $image_ref"
-          cosign sign "$image_ref"
-
-  # -------------------------------------------------------------------
-  # P5 verification: re-verify our own signature on the pushed image.
-  # Smoke test so that a signing misconfiguration is caught here,
-  # not by a downstream consumer.
-  # -------------------------------------------------------------------
-  verify-published-image:
-    name: Verify our own signature
-    runs-on: ubuntu-latest
-    needs: build-and-push
-    if: github.event_name == 'push'
-    permissions:
-      contents: read
-      packages: read
-      id-token: write
-    steps:
-      - name: Install cosign
-        uses: sigstore/cosign-installer@v4.1.1
-
-      - name: Log in to GHCR
-        uses: docker/login-action@v3
-        with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Verify signature
-        run: |
-          set -euo pipefail
-          ref="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:sha-$(echo ${{ github.sha }} | cut -c1-7)"
-          cosign verify \
-            --certificate-oidc-issuer='https://token.actions.githubusercontent.com' \
-            --certificate-identity-regexp="^https://github\.com/${{ github.repository }}/\.github/workflows/.+@refs/" \
-            "$ref"
