@@ -31,8 +31,14 @@ name: Renovate
 
 on:
   schedule:
-    # Daily at 01:00 UTC (= 09:00 Asia/Taipei, matching renovate.json schedule).
-    - cron: "0 1 * * *"
+    # Every 6 hours (00:00, 06:00, 12:00, 18:00 UTC).
+    # Rationale: vulnerabilityAlerts in renovate.json bypass schedule /
+    # prHourlyLimit / minimumReleaseAge once Renovate runs, but Renovate
+    # still only *runs* when this cron fires.  Going from daily to every
+    # 6 hours bounds worst-case CVE-to-PR latency at ~6 hours for the
+    # self-hosted path.  (For sub-hour response, Dependabot alerts cover
+    # the instant-notification channel in parallel.)
+    - cron: "0 */6 * * *"
   workflow_dispatch:
     inputs:
       logLevel:
