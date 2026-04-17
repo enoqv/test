@@ -1,9 +1,10 @@
 # Claude Code plugins to install on devcontainer startup.
-# One `plugin-name@marketplace` spec per line.
-# Lines starting with # are ignored.
+# One `plugin-name@marketplace` spec per line. Comments (#) ignored.
+# The official marketplace is `claude-plugins-official` and is always
+# available without a separate `marketplace add`.
 
-# Upstash Context7 — docs-aware tooling (skill + /context7:docs command).
-context7-plugin@context7-marketplace
+# Upstash Context7 — docs-aware lookup (skill + agent + /context7:* cmds).
+context7@claude-plugins-official
 
-# obra/superpowers — TDD, brainstorm, write-plan, execute-plan skills.
-superpowers@superpowers-marketplace
+# obra/Superpowers — brainstorm, plan, TDD, subagent-driven dev workflow.
+superpowers@claude-plugins-official
