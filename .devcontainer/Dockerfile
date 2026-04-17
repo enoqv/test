@@ -14,15 +14,19 @@ ENV DEBIAN_FRONTEND=noninteractive
 # sessions can be detached/reattached safely inside the sandboxed
 # devcontainer.
 #
-# debian:*-slim strips `/usr/share/doc/*` via `dpkg path-exclude`, which
-# would delete fzf's shell integration scripts (key-bindings.zsh,
-# completion.zsh) and cause zsh to log "no such file or directory"
-# warnings on every login. Whitelist that subtree before apt-get runs.
+# debian:*-slim strips `/usr/share/doc/*` via a `path-exclude` drop-in
+# at /etc/dpkg/dpkg.cfg.d/docker, which would delete fzf's shell
+# integration scripts (key-bindings.zsh, completion.zsh) and cause zsh
+# to log "no such file or directory" warnings on every login. dpkg
+# reads these drop-ins in lexical order and `path-include` only
+# overrides a prior `path-exclude`, so the filename has to sort AFTER
+# the base image's `docker` file.
 RUN echo 'path-include=/usr/share/doc/fzf/examples/*' \
-      > /etc/dpkg/dpkg.cfg.d/00-fzf-examples && \
+      > /etc/dpkg/dpkg.cfg.d/zz-fzf-examples && \
     apt-get update && apt-get install -y --no-install-recommends \
     less \
     git \
+    openssh-client \
     procps \
     sudo \
     fzf \
