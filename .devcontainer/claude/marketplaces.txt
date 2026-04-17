@@ -1,6 +1,9 @@
 # Plugin marketplaces to register on devcontainer startup.
-# One URL per line. Lines starting with # are ignored.
-#
-# Examples:
-#   https://github.com/some-org/claude-plugins
-#   https://example.com/claude-marketplace.json
+# One marketplace spec per line (URL or owner/repo).
+# Lines starting with # are ignored.
+
+# Context7 — up-to-date library docs plugin.
+upstash/context7
+
+# Superpowers — obra's curated skills/commands pack.
+obra/superpowers-marketplace
