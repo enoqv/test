@@ -14,6 +14,21 @@ SQUID_CONF="/etc/squid/squid.conf"
 
 log() { printf '[squid-entrypoint] %s\n' "$*"; }
 
+# The squid process drops privileges to the `proxy` user. Volume-mounted
+# log/cache dirs come up owned by root, so fix ownership before starting.
+for d in /var/log/squid /var/spool/squid /var/cache/squid; do
+  [[ -d "$d" ]] || mkdir -p "$d"
+  chown -R proxy:proxy "$d" 2>/dev/null || true
+done
+
+# Validate the config up-front so we fail fast with a readable error rather
+# than getting stuck in a healthcheck loop.
+log "parsing squid config"
+if ! squid -k parse -f "${SQUID_CONF}"; then
+  log "ERROR: squid config failed to parse; aborting"
+  exit 1
+fi
+
 # Warm up the cache dirs if they don't exist yet.
 if [[ ! -d /var/spool/squid/00 ]]; then
   log "initializing squid cache directories"

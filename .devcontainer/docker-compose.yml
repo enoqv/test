@@ -52,11 +52,13 @@ services:
       - internal
       - external
     healthcheck:
-      test: ["CMD-SHELL", "squidclient -h 127.0.0.1 -p 3128 mgr:info >/dev/null 2>&1 || exit 1"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 15s
+      # Use bash's built-in /dev/tcp so we don't depend on squidclient / nc
+      # being installed in the squid image.
+      test: ["CMD-SHELL", "bash -c 'exec 3<>/dev/tcp/127.0.0.1/3128' 2>/dev/null || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 30s
 
 networks:
   # No external connectivity; only containers on this network can talk.

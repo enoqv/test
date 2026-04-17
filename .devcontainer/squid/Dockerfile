@@ -7,6 +7,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
       inotify-tools \
       curl \
       ca-certificates \
+      squidclient \
+      netcat-openbsd \
   && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 COPY entrypoint.sh /usr/local/bin/squid-entrypoint.sh
