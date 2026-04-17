@@ -1,25 +1,22 @@
 # Dynamic allowlist for the Squid proxy.
 #
-# Syntax: one domain per line. A leading dot matches the domain and all
-# subdomains (e.g. `.github.com` matches `api.github.com`). Lines beginning
-# with `#` are comments.
+# Syntax (squid dstdomain ACL):
+#   - `.example.com`  matches `example.com` and ALL subdomains
+#   - `example.com`   matches `example.com` exactly (no subdomains)
+#   - never list both forms of the same domain — squid treats that as
+#     a FATAL config error (the leading-dot form already covers the
+#     bare form, see RemoveACL warnings in squid's cache.log)
 #
-# After editing, apply changes without restarting the container by running,
-# from inside the dev container:
-#
-#   sudo reload-squid.sh
-#
-# (That issues `squid -k reconfigure` in the squid service.)
+# After editing, squid auto-reloads via the inotify watcher. To force a
+# reload manually run `sudo reload-squid.sh` from inside the dev container.
 
 # --- Anthropic / Claude Code ---
 .anthropic.com
 .claude.ai
 .claude.com
-statsig.anthropic.com
 
 # --- Package registries ---
 .npmjs.org
-registry.npmjs.org
 .yarnpkg.com
 proxy.golang.org
 sum.golang.org
@@ -29,11 +26,7 @@ golang.org
 # --- GitHub ---
 .github.com
 .githubusercontent.com
-api.github.com
-codeload.github.com
-objects.githubusercontent.com
 ghcr.io
-pkg-containers.githubusercontent.com
 
 # --- VS Code / extensions ---
 update.code.visualstudio.com
@@ -43,15 +36,10 @@ vscode.blob.core.windows.net
 
 # --- Observability / telemetry used by Claude Code ---
 .sentry.io
-o4508244122075648.ingest.us.sentry.io
 
 # --- Context7 MCP server (documentation lookups) ---
 .context7.com
-mcp.context7.com
-context7.com
 
 # --- Container registries used by docker-compose pulls ---
-registry-1.docker.io
-auth.docker.io
-production.cloudflare.docker.com
 .docker.io
+production.cloudflare.docker.com
