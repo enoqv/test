@@ -50,6 +50,17 @@ log "starting squid in foreground (-N -Y)"
 squid -N -Y -f "${SQUID_CONF}" &
 SQUID_PID=$!
 
+# Stream squid log files to this process's stdout/stderr so that
+# `docker logs squid` shows every request and any squid errors. We
+# pre-create the files so `tail -F` doesn't race with squid opening them.
+: > /var/log/squid/access.log
+: > /var/log/squid/cache.log
+chown proxy:proxy /var/log/squid/access.log /var/log/squid/cache.log 2>/dev/null || true
+tail -F /var/log/squid/access.log 2>/dev/null &
+TAIL_ACCESS_PID=$!
+tail -F /var/log/squid/cache.log 1>&2 2>/dev/null &
+TAIL_CACHE_PID=$!
+
 reload_squid() {
   if kill -0 "${SQUID_PID}" 2>/dev/null; then
     log "reloading squid (allowlist changed)"
@@ -57,8 +68,8 @@ reload_squid() {
   fi
 }
 
-# Forward termination signals to squid.
-trap 'log "stopping squid"; squid -k shutdown -f "${SQUID_CONF}" 2>/dev/null || true; wait "${SQUID_PID}" 2>/dev/null || true; exit 0' TERM INT
+# Forward termination signals to squid + stop the log tailers.
+trap 'log "stopping squid"; squid -k shutdown -f "${SQUID_CONF}" 2>/dev/null || true; kill "${TAIL_ACCESS_PID}" "${TAIL_CACHE_PID}" 2>/dev/null || true; wait "${SQUID_PID}" 2>/dev/null || true; exit 0' TERM INT
 
 # inotify watcher — watch the parent directory because editors often replace
 # the file via write-to-temp + rename, invalidating direct watches.
