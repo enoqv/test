@@ -64,6 +64,17 @@ RUN groupadd --gid ${USER_GID} ${USERNAME} && \
     echo "${USERNAME} ALL=(root) NOPASSWD:ALL" > /etc/sudoers.d/${USERNAME} && \
     chmod 0440 /etc/sudoers.d/${USERNAME}
 
+# Node.js toolchain — many Claude Code plugins, MCP servers, and dev
+# tools ship as npm packages and need `node` / `npx` on PATH. We use
+# the NodeSource distribution (the method documented at
+# https://nodejs.org/en/download for Debian/Ubuntu) instead of nvm
+# because we just need one pinned major version image-wide.
+ARG NODE_MAJOR=24
+RUN curl -fsSL "https://deb.nodesource.com/setup_${NODE_MAJOR}.x" | bash - && \
+    apt-get install -y --no-install-recommends nodejs && \
+    apt-get clean && rm -rf /var/lib/apt/lists/* && \
+    node --version && npm --version
+
 # Go toolchain for this project. The version is derived from go.mod so the
 # devcontainer stays in sync with the project's declared Go version.
 COPY go.mod /tmp/go.mod
@@ -84,8 +95,8 @@ RUN mkdir /commandhistory && \
     chown -R ${USERNAME}:${USERNAME} /commandhistory
 
 # Create workspace and config directories and set permissions
-RUN mkdir -p /workspace /home/dever/.claude /home/dever/.local/bin /home/dever/go /home/dever/.cache/go-build && \
-    chown -R ${USERNAME}:${USERNAME} /workspace /home/dever/.claude /home/dever/.local /home/dever/go /home/dever/.cache
+RUN mkdir -p /workspace /home/dever/.claude /home/dever/.local/bin /home/dever/go /home/dever/.cache/go-build /home/dever/.npm-global && \
+    chown -R ${USERNAME}:${USERNAME} /workspace /home/dever/.claude /home/dever/.local /home/dever/go /home/dever/.cache /home/dever/.npm-global
 
 WORKDIR /workspace
 
@@ -121,7 +132,10 @@ COPY --chown=${USERNAME}:${USERNAME} .devcontainer/zellij/config.kdl /home/dever
 USER ${USERNAME}
 
 # The Claude Code native installer drops the binary in ~/.local/bin.
-ENV PATH=/home/dever/.local/bin:${PATH}:/home/dever/go/bin
+# npm is configured to install -g packages into ~/.npm-global so the
+# `dever` user doesn't need sudo for `npm i -g <pkg>`.
+ENV NPM_CONFIG_PREFIX=/home/dever/.npm-global
+ENV PATH=/home/dever/.local/bin:/home/dever/.npm-global/bin:${PATH}:/home/dever/go/bin
 
 # Default shell + editors.
 ENV SHELL=/bin/zsh
