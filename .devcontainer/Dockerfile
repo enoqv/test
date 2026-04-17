@@ -76,6 +76,21 @@ RUN ARCH=$(dpkg --print-architecture) && \
     sudo dpkg -i "git-delta_${GIT_DELTA_VERSION}_${ARCH}.deb" && \
     rm "git-delta_${GIT_DELTA_VERSION}_${ARCH}.deb"
 
+# zellij terminal multiplexer (modern alternative to tmux, installed
+# alongside it so users can pick either). Upstream ships static
+# binaries, so there's no apt package to track.
+ARG ZELLIJ_VERSION=0.43.1
+RUN ARCH=$(dpkg --print-architecture) && \
+    case "${ARCH}" in \
+      amd64) ZELLIJ_ARCH=x86_64-unknown-linux-musl ;; \
+      arm64) ZELLIJ_ARCH=aarch64-unknown-linux-musl ;; \
+      *) echo "unsupported architecture for zellij: ${ARCH}" >&2; exit 1 ;; \
+    esac && \
+    wget -qO /tmp/zellij.tar.gz "https://github.com/zellij-org/zellij/releases/download/v${ZELLIJ_VERSION}/zellij-${ZELLIJ_ARCH}.tar.gz" && \
+    tar -xzf /tmp/zellij.tar.gz -C /usr/local/bin zellij && \
+    chmod +x /usr/local/bin/zellij && \
+    rm /tmp/zellij.tar.gz
+
 # Set up non-root user
 USER node
 
