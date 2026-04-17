@@ -1,0 +1,52 @@
+# Dynamic allowlist for the Squid proxy.
+#
+# Syntax: one domain per line. A leading dot matches the domain and all
+# subdomains (e.g. `.github.com` matches `api.github.com`). Lines beginning
+# with `#` are comments.
+#
+# After editing, apply changes without restarting the container by running,
+# from inside the dev container:
+#
+#   sudo reload-squid.sh
+#
+# (That issues `squid -k reconfigure` in the squid service.)
+
+# --- Anthropic / Claude Code ---
+.anthropic.com
+.claude.ai
+.claude.com
+statsig.anthropic.com
+
+# --- Package registries ---
+.npmjs.org
+registry.npmjs.org
+.yarnpkg.com
+proxy.golang.org
+sum.golang.org
+go.dev
+golang.org
+
+# --- GitHub ---
+.github.com
+.githubusercontent.com
+api.github.com
+codeload.github.com
+objects.githubusercontent.com
+ghcr.io
+pkg-containers.githubusercontent.com
+
+# --- VS Code / extensions ---
+update.code.visualstudio.com
+marketplace.visualstudio.com
+vscode.blob.core.windows.net
+.vscode-unpkg.net
+
+# --- Observability / telemetry used by Claude Code ---
+.sentry.io
+o4508244122075648.ingest.us.sentry.io
+
+# --- Container registries used by docker-compose pulls ---
+registry-1.docker.io
+auth.docker.io
+production.cloudflare.docker.com
+.docker.io

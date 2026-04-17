@@ -1,0 +1,73 @@
+# Devcontainer compose stack.
+#
+# Security model: the `dev` service is attached ONLY to the `internal` Docker
+# network, which has `internal: true` (no NAT to the host/internet). The `squid`
+# service sits on both `internal` and `external` networks, so it is the only
+# egress path. Even if HTTP_PROXY is bypassed, direct outbound traffic from the
+# dev container has no route. All HTTP(S) traffic is filtered by Squid using
+# the dynamic allowlist at ./squid/allowed-domains.txt.
+
+services:
+  dev:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        TZ: "${TZ:-Asia/Taipei}"
+        CLAUDE_CODE_VERSION: "latest"
+        GO_VERSION: "1.25.9"
+        GIT_DELTA_VERSION: "0.18.2"
+        ZSH_IN_DOCKER_VERSION: "1.2.0"
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+    volumes:
+      - ..:/workspace:delegated
+      - claude-code-bashhistory:/commandhistory
+      - claude-code-config:/home/node/.claude
+      - go-cache:/home/node/.cache/go-build
+      - go-mod-cache:/home/node/go/pkg/mod
+      # Mount the squid allowlist read-only so the dev user can view it.
+      - ./squid/allowed-domains.txt:/etc/squid/allowed-domains.txt:ro
+    networks:
+      - internal
+    depends_on:
+      squid:
+        condition: service_healthy
+    command: sleep infinity
+
+  squid:
+    build:
+      context: ./squid
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    volumes:
+      - ./squid/squid.conf:/etc/squid/squid.conf:ro
+      - ./squid/allowed-domains.txt:/etc/squid/allowed-domains.txt
+      - squid-cache:/var/spool/squid
+      - squid-logs:/var/log/squid
+    networks:
+      - internal
+      - external
+    healthcheck:
+      test: ["CMD-SHELL", "squidclient -h 127.0.0.1 -p 3128 mgr:info >/dev/null 2>&1 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+
+networks:
+  # No external connectivity; only containers on this network can talk.
+  internal:
+    internal: true
+  # Standard bridge network with NAT to host/internet (squid only).
+  external:
+    driver: bridge
+
+volumes:
+  claude-code-bashhistory:
+  claude-code-config:
+  go-cache:
+  go-mod-cache:
+  squid-cache:
+  squid-logs:

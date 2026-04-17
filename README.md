@@ -69,6 +69,35 @@ go test ./...
 Multi-arch images (amd64 + arm64) are built via GitHub Actions and pushed to
 `ghcr.io/<owner>/<repo>` on every push to `main` and feature branches.
 
+## Devcontainer (Claude Code sandbox)
+
+The `.devcontainer/` directory provides a sandboxed development container
+modelled on the [official Claude Code reference devcontainer](https://code.claude.com/docs/en/devcontainer)
+so you can safely run `claude --dangerously-skip-permissions`.
+
+Differences vs. the reference setup:
+
+- **Squid proxy for domain filtering** instead of the `init-firewall.sh`
+  iptables/ipset allowlist. The `dev` service is attached to an `internal:
+  true` Docker network with **no route to the internet**; the `squid`
+  service is the sole egress and enforces a domain allowlist.
+- **Dynamic allowlist**: edit
+  [`.devcontainer/squid/allowed-domains.txt`](.devcontainer/squid/allowed-domains.txt)
+  and squid auto-reloads via an inotify watcher (no container restart).
+  Force a reload with `sudo reload-squid.sh` from inside the dev container.
+- **`tmux`** is installed so detached Claude sessions survive terminal
+  disconnects inside the sandbox.
+- Go 1.25 toolchain preinstalled alongside the reference Node.js 20 base.
+
+### Usage
+
+1. Install VS Code + the Dev Containers extension.
+2. Open the repo and choose **Reopen in Container**.
+3. Once the container is built, open a terminal and run `claude` to log in.
+4. To allow a new domain: edit
+   `.devcontainer/squid/allowed-domains.txt`, save, wait ~1s
+   (or run `sudo reload-squid.sh`), and retry the request.
+
 ## Repo setup & governance
 
 One-time setup docs (moved out of this README to keep it focused on
