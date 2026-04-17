@@ -13,7 +13,14 @@ ENV DEBIAN_FRONTEND=noninteractive
 # tmux/zellij are included so `claude --dangerously-skip-permissions`
 # sessions can be detached/reattached safely inside the sandboxed
 # devcontainer.
-RUN apt-get update && apt-get install -y --no-install-recommends \
+#
+# debian:*-slim strips `/usr/share/doc/*` via `dpkg path-exclude`, which
+# would delete fzf's shell integration scripts (key-bindings.zsh,
+# completion.zsh) and cause zsh to log "no such file or directory"
+# warnings on every login. Whitelist that subtree before apt-get runs.
+RUN echo 'path-include=/usr/share/doc/fzf/examples/*' \
+      > /etc/dpkg/dpkg.cfg.d/00-fzf-examples && \
+    apt-get update && apt-get install -y --no-install-recommends \
     less \
     git \
     procps \
