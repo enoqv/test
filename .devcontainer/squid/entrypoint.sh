@@ -18,11 +18,16 @@ log() { printf '[squid-entrypoint] %s\n' "$*"; }
 
 log "squid version: $(squid -v 2>&1 | head -n1 || echo unknown)"
 
-# The squid process drops privileges to the `proxy` user. Volume-mounted
-# log/cache dirs come up owned by root, so fix ownership before starting.
+# squid drops privileges after start. Detect which user the installed
+# package uses (`squid` on Alpine, `proxy` on Debian/Ubuntu) and fix
+# ownership on volume-mounted dirs, which come up owned by root.
+SQUID_USER="$(getent passwd squid >/dev/null 2>&1 && echo squid || echo proxy)"
+SQUID_GROUP="$(getent group "${SQUID_USER}" >/dev/null 2>&1 && echo "${SQUID_USER}" || echo "${SQUID_USER}")"
+log "squid runs as ${SQUID_USER}:${SQUID_GROUP}"
+
 for d in /var/log/squid /var/spool/squid /var/cache/squid /run/squid; do
   [[ -d "$d" ]] || mkdir -p "$d"
-  chown -R proxy:proxy "$d" 2>/dev/null || true
+  chown -R "${SQUID_USER}:${SQUID_GROUP}" "$d" 2>/dev/null || true
 done
 
 # Ensure the allowlist file exists (empty file is valid; squid will deny all).
@@ -51,9 +56,9 @@ fi
 # `tail -F` sidecar needed. This is the approach used by the common
 # squid docker images (muccg, scbunn, etc).
 #
-# We loosen the fd perms first because squid drops privileges to the
-# `proxy` user, and /proc/self/fd/1 is owned by the root user that
-# started the entrypoint.
+# We loosen the fd perms first because squid drops privileges after
+# start, and /proc/self/fd/1 is owned by the root user that started
+# the entrypoint.
 chmod 666 /dev/stdout /dev/stderr 2>/dev/null || true
 ln -sf /dev/stdout /var/log/squid/access.log
 ln -sf /dev/stdout /var/log/squid/cache.log
