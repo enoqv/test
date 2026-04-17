@@ -85,18 +85,53 @@ Differences vs. the reference setup:
   [`.devcontainer/squid/allowed-domains.txt`](.devcontainer/squid/allowed-domains.txt)
   and squid auto-reloads via an inotify watcher (no container restart).
   Force a reload with `sudo reload-squid.sh` from inside the dev container.
-- **`tmux`** is installed so detached Claude sessions survive terminal
-  disconnects inside the sandbox.
-- Go 1.25 toolchain preinstalled alongside the reference Node.js 20 base.
+- **`tmux` + `zellij`** are both preinstalled so detached Claude sessions
+  survive terminal disconnects inside the sandbox. Zellij ships with the
+  [shared config](.devcontainer/zellij/config.kdl) (catppuccin-mocha theme,
+  Vim-style keybinds, session serialization).
+- **Native Claude Code installer** — the image runs
+  `curl -fsSL https://claude.ai/install.sh | bash`, so there's no Node.js
+  base image or npm plumbing. Go toolchain version is derived from
+  `go.mod`.
+- **Pre-installed plugins** — `postCreateCommand` runs
+  [`.devcontainer/claude-setup.sh`](.devcontainer/claude-setup.sh), which
+  installs `context7@claude-plugins-official` and
+  `superpowers@claude-plugins-official` by default. Add or remove entries
+  in [`.devcontainer/claude/plugins.txt`](.devcontainer/claude/plugins.txt),
+  [`.devcontainer/claude/marketplaces.txt`](.devcontainer/claude/marketplaces.txt),
+  [`.devcontainer/claude/mcp-servers.json`](.devcontainer/claude/mcp-servers.json),
+  or drop skills under `.devcontainer/claude/skills/`.
 
 ### Usage
+
+#### VS Code
 
 1. Install VS Code + the Dev Containers extension.
 2. Open the repo and choose **Reopen in Container**.
 3. Once the container is built, open a terminal and run `claude` to log in.
-4. To allow a new domain: edit
-   `.devcontainer/squid/allowed-domains.txt`, save, wait ~1s
-   (or run `sudo reload-squid.sh`), and retry the request.
+
+#### `devcontainer` CLI (no VS Code)
+
+Install the [`@devcontainers/cli`](https://github.com/devcontainers/cli)
+(`npm i -g @devcontainers/cli`), then from the repo root:
+
+```sh
+# Build and start (or rebuild from scratch) the devcontainer stack.
+devcontainer up --remove-existing-container --workspace-folder .
+
+# Drop into the container as the `dever` user.
+devcontainer exec --workspace-folder . bash
+
+# Inside the container, start Zellij (or tmux) and then Claude.
+zellij            # preinstalled with the shared config
+claude            # auto-login flow
+```
+
+#### Managing the allowlist
+
+To allow a new domain: edit
+`.devcontainer/squid/allowed-domains.txt`, save, wait ~1s
+(or run `sudo reload-squid.sh`), and retry the request.
 
 ## Repo setup & governance
 
