@@ -58,29 +58,20 @@ if [ -s "${MARKET_FILE}" ]; then
 fi
 
 # --- Plugins ----------------------------------------------------------
-# The official `claude-plugins-official` marketplace carries most plugins
-# (including context7 and superpowers) as git submodules under
-# `external_plugins/`. Claude Code's initial clone does not recurse
-# submodules, which breaks `claude plugin install` with:
-#   Failed to install plugin "<name>@claude-plugins-official":
-#   Source path does not exist: .../external_plugins/<name>
-# Force-materialize the official marketplace, then sync submodules for
-# every marketplace clone before running `claude plugin install`.
-log "refreshing claude-plugins-official marketplace"
-claude plugin marketplace update claude-plugins-official >/dev/null 2>&1 || true
-
-MARKETPLACES_DIR="${CLAUDE_HOME}/plugins/marketplaces"
-if [ -d "${MARKETPLACES_DIR}" ]; then
-  for mkt in "${MARKETPLACES_DIR}"/*/; do
-    [ -d "${mkt}" ] || continue
-    if [ -e "${mkt}.git" ] && [ -f "${mkt}.gitmodules" ]; then
-      log "syncing submodules for $(basename "${mkt}")"
-      git -C "${mkt}" submodule sync --recursive >/dev/null 2>&1 || true
-      git -C "${mkt}" submodule update --init --recursive \
-        || log "  submodule update failed for $(basename "${mkt}")"
-    fi
-  done
-fi
+# Claude Code auto-registers the official `claude-plugins-official`
+# marketplace as a URL source (only downloads marketplace.json). That
+# breaks plugins whose entries use relative paths like
+# `./external_plugins/context7`, because the actual plugin files are
+# never cloned. Per the docs' troubleshooting section "Plugins with
+# relative paths fail in URL-based marketplaces", re-add it from the
+# GitHub repo so Claude clones the full tree.
+#
+# Removing first is safe: on a fresh container nothing is installed from
+# it yet, and any existing plugins get reinstalled by the loop below.
+log "re-registering claude-plugins-official as a git-based marketplace"
+claude plugin marketplace remove claude-plugins-official >/dev/null 2>&1 || true
+claude plugin marketplace add anthropics/claude-plugins-official \
+  || log "  failed to add anthropics/claude-plugins-official"
 
 PLUGINS_FILE="${CONF_DIR}/plugins.txt"
 if [ -s "${PLUGINS_FILE}" ]; then
