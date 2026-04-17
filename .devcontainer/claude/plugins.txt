@@ -1,0 +1,7 @@
+# Claude Code plugins to install on devcontainer startup.
+# One `plugin-name@marketplace` spec per line.
+# Lines starting with # are ignored.
+#
+# Examples:
+#   my-plugin@my-marketplace
+#   another-plugin@github.com/some-org/claude-plugins

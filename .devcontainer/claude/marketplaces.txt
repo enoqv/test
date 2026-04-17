@@ -1,0 +1,6 @@
+# Plugin marketplaces to register on devcontainer startup.
+# One URL per line. Lines starting with # are ignored.
+#
+# Examples:
+#   https://github.com/some-org/claude-plugins
+#   https://example.com/claude-marketplace.json

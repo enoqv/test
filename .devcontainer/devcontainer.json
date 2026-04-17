@@ -3,7 +3,7 @@
   "dockerComposeFile": "docker-compose.yml",
   "service": "dev",
   "workspaceFolder": "/workspace",
-  "remoteUser": "node",
+  "remoteUser": "dever",
   "customizations": {
     "vscode": {
       "extensions": [
@@ -27,8 +27,7 @@
     }
   },
   "containerEnv": {
-    "NODE_OPTIONS": "--max-old-space-size=4096",
-    "CLAUDE_CONFIG_DIR": "/home/node/.claude",
+    "CLAUDE_CONFIG_DIR": "/home/dever/.claude",
     "POWERLEVEL9K_DISABLE_GITSTATUS": "true",
     "HTTP_PROXY": "http://squid:3128",
     "HTTPS_PROXY": "http://squid:3128",
@@ -37,13 +36,14 @@
     "NO_PROXY": "localhost,127.0.0.1,::1,squid,postgres,redis",
     "no_proxy": "localhost,127.0.0.1,::1,squid,postgres,redis"
   },
+  "postCreateCommand": "bash /workspace/.devcontainer/claude-setup.sh",
   "postStartCommand": "sudo /usr/local/bin/init-proxy.sh",
   "waitFor": "postStartCommand",
   "overrideCommand": true,
 
   // Skip the auto-generated `FROM $BASE_IMAGE` overlay that devcontainer
   // CLI uses to align the container user's UID/GID with the host. The
-  // `node` user in our Dockerfile already has a reasonable UID, and the
+  // `dever` user in our Dockerfile already has a reasonable UID, and the
   // overlay Dockerfile is what produces the harmless
   // `InvalidDefaultArgInFrom: Default value for ARG $BASE_IMAGE ...`
   // warning from BuildKit during `devcontainer up`.

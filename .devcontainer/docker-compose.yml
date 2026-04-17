@@ -17,7 +17,6 @@ services:
       dockerfile: .devcontainer/Dockerfile
       args:
         TZ: "${TZ:-Asia/Taipei}"
-        CLAUDE_CODE_VERSION: "latest"
         GIT_DELTA_VERSION: "0.18.2"
         ZSH_IN_DOCKER_VERSION: "1.2.0"
     cap_add:
@@ -26,9 +25,9 @@ services:
     volumes:
       - ..:/workspace:delegated
       - claude-code-bashhistory:/commandhistory
-      - claude-code-config:/home/node/.claude
-      - go-cache:/home/node/.cache/go-build
-      - go-mod-cache:/home/node/go/pkg/mod
+      - claude-code-config:/home/dever/.claude
+      - go-cache:/home/dever/.cache/go-build
+      - go-mod-cache:/home/dever/go/pkg/mod
       # Mount the squid allowlist read-only so the dev user can view it.
       - ./squid/allowed-domains.txt:/etc/squid/allowed-domains.txt:ro
     networks:

@@ -1,15 +1,18 @@
 # syntax=docker/dockerfile:1.22
-# Reference: https://github.com/anthropics/claude-code/blob/main/.devcontainer/Dockerfile
-FROM node:20
+# Modeled on https://github.com/anthropics/claude-code/blob/main/.devcontainer/Dockerfile
+# but rebased on debian:bookworm-slim — Claude Code now ships as a native
+# binary (https://code.claude.com/docs/en/installation), so the Node.js
+# base image that the reference uses is no longer needed.
+FROM debian:bookworm-slim
 
 ARG TZ
 ENV TZ="$TZ"
-
-ARG CLAUDE_CODE_VERSION=latest
+ENV DEBIAN_FRONTEND=noninteractive
 
 # Install basic development tools.
-# tmux is included so `claude --dangerously-skip-permissions` sessions can be
-# detached/reattached safely inside the sandboxed devcontainer.
+# tmux/zellij are included so `claude --dangerously-skip-permissions`
+# sessions can be detached/reattached safely inside the sandboxed
+# devcontainer.
 RUN apt-get update && apt-get install -y --no-install-recommends \
     less \
     git \
@@ -20,7 +23,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     man-db \
     unzip \
     gnupg2 \
-    gh \
     iptables \
     ipset \
     iproute2 \
@@ -33,7 +35,18 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     curl \
     wget \
+    locales \
   && apt-get clean && rm -rf /var/lib/apt/lists/*
+
+# Create the unprivileged `dever` user that Claude Code / the devcontainer
+# runs as. Provisioned manually because we're on a plain debian base.
+ARG USERNAME=dever
+ARG USER_UID=1000
+ARG USER_GID=${USER_UID}
+RUN groupadd --gid ${USER_GID} ${USERNAME} && \
+    useradd --uid ${USER_UID} --gid ${USER_GID} -m --shell /bin/zsh ${USERNAME} && \
+    echo "${USERNAME} ALL=(root) NOPASSWD:ALL" > /etc/sudoers.d/${USERNAME} && \
+    chmod 0440 /etc/sudoers.d/${USERNAME}
 
 # Go toolchain for this project. The version is derived from go.mod so the
 # devcontainer stays in sync with the project's declared Go version.
@@ -46,39 +59,28 @@ RUN ARCH=$(dpkg --print-architecture) && \
     tar -C /usr/local -xzf /tmp/go.tar.gz && \
     rm /tmp/go.tar.gz /tmp/go.mod
 ENV PATH="/usr/local/go/bin:${PATH}"
-ENV GOPATH=/home/node/go
-ENV GOCACHE=/home/node/.cache/go-build
-
-# Ensure default node user has access to /usr/local/share
-RUN mkdir -p /usr/local/share/npm-global && \
-    chown -R node:node /usr/local/share
-
-ARG USERNAME=node
+ENV GOPATH=/home/dever/go
+ENV GOCACHE=/home/dever/.cache/go-build
 
 # Persist bash history.
-RUN SNIPPET="export PROMPT_COMMAND='history -a' && export HISTFILE=/commandhistory/.bash_history" \
-  && mkdir /commandhistory \
-  && touch /commandhistory/.bash_history \
-  && chown -R $USERNAME /commandhistory
-
-# Set `DEVCONTAINER` environment variable to help with orientation
-ENV DEVCONTAINER=true
+RUN mkdir /commandhistory && \
+    touch /commandhistory/.bash_history && \
+    chown -R ${USERNAME}:${USERNAME} /commandhistory
 
 # Create workspace and config directories and set permissions
-RUN mkdir -p /workspace /home/node/.claude /home/node/go /home/node/.cache/go-build && \
-    chown -R node:node /workspace /home/node/.claude /home/node/go /home/node/.cache
+RUN mkdir -p /workspace /home/dever/.claude /home/dever/.local/bin /home/dever/go /home/dever/.cache/go-build && \
+    chown -R ${USERNAME}:${USERNAME} /workspace /home/dever/.claude /home/dever/.local /home/dever/go /home/dever/.cache
 
 WORKDIR /workspace
 
 ARG GIT_DELTA_VERSION=0.18.2
 RUN ARCH=$(dpkg --print-architecture) && \
     wget "https://github.com/dandavison/delta/releases/download/${GIT_DELTA_VERSION}/git-delta_${GIT_DELTA_VERSION}_${ARCH}.deb" && \
-    sudo dpkg -i "git-delta_${GIT_DELTA_VERSION}_${ARCH}.deb" && \
+    dpkg -i "git-delta_${GIT_DELTA_VERSION}_${ARCH}.deb" && \
     rm "git-delta_${GIT_DELTA_VERSION}_${ARCH}.deb"
 
-# zellij terminal multiplexer (modern alternative to tmux, installed
-# alongside it so users can pick either). Upstream ships static
-# binaries, so there's no apt package to track.
+# zellij terminal multiplexer (modern alternative to tmux). Upstream
+# ships static musl binaries, so there's no apt package to track.
 ARG ZELLIJ_VERSION=0.43.1
 RUN ARCH=$(dpkg --print-architecture) && \
     case "${ARCH}" in \
@@ -91,29 +93,26 @@ RUN ARCH=$(dpkg --print-architecture) && \
     chmod +x /usr/local/bin/zellij && \
     rm /tmp/zellij.tar.gz
 
-# Zellij default config for the `node` user. Mirrors
+# Zellij default config for the `dever` user. Mirrors
 # ~/.config/zellij/config.kdl so a fresh container has Vim-style
 # keybinds, catppuccin-mocha theme, session serialization, etc.
 # Source: https://gist.github.com/enoqv/707aafdcacc2a80f4b9b7e891a5760c5
-RUN mkdir -p /home/node/.config/zellij && \
-    chown -R node:node /home/node/.config
-COPY --chown=node:node .devcontainer/zellij/config.kdl /home/node/.config/zellij/config.kdl
+RUN mkdir -p /home/dever/.config/zellij && \
+    chown -R ${USERNAME}:${USERNAME} /home/dever/.config
+COPY --chown=${USERNAME}:${USERNAME} .devcontainer/zellij/config.kdl /home/dever/.config/zellij/config.kdl
 
-# Set up non-root user
-USER node
+# Switch to the unprivileged user for per-user installs.
+USER ${USERNAME}
 
-# Install global packages
-ENV NPM_CONFIG_PREFIX=/usr/local/share/npm-global
-ENV PATH=$PATH:/usr/local/share/npm-global/bin:/home/node/go/bin
+# The Claude Code native installer drops the binary in ~/.local/bin.
+ENV PATH=/home/dever/.local/bin:${PATH}:/home/dever/go/bin
 
-# Set the default shell to zsh rather than sh
+# Default shell + editors.
 ENV SHELL=/bin/zsh
-
-# Set the default editor and visual
 ENV EDITOR=nano
 ENV VISUAL=nano
 
-# Default powerline10k theme
+# zsh-in-docker: powerline10k theme + fzf keybindings + persistent history.
 ARG ZSH_IN_DOCKER_VERSION=1.2.0
 RUN sh -c "$(wget -O- https://github.com/deluan/zsh-in-docker/releases/download/v${ZSH_IN_DOCKER_VERSION}/zsh-in-docker.sh)" -- \
     -p git \
@@ -123,19 +122,26 @@ RUN sh -c "$(wget -O- https://github.com/deluan/zsh-in-docker/releases/download/
     -a "export PROMPT_COMMAND='history -a' && export HISTFILE=/commandhistory/.bash_history" \
     -x
 
-# Install Claude
-RUN npm install -g @anthropic-ai/claude-code@${CLAUDE_CODE_VERSION}
+# Claude Code — native installer (per
+# https://code.claude.com/docs/en/installation). The installer writes the
+# binary to /home/dever/.local/bin/claude and auto-updates in the
+# background at runtime, so we don't pin a version here.
+RUN curl -fsSL https://claude.ai/install.sh | bash && \
+    /home/dever/.local/bin/claude --version
 
 # Copy proxy init + squid reload helpers. Replaces the reference
 # init-firewall.sh domain-filtering approach with Squid-based filtering.
 # Paths are relative to the build context (repo root).
+USER root
 COPY .devcontainer/init-proxy.sh /usr/local/bin/init-proxy.sh
 COPY .devcontainer/reload-squid.sh /usr/local/bin/reload-squid.sh
-USER root
 RUN chmod +x /usr/local/bin/init-proxy.sh /usr/local/bin/reload-squid.sh && \
     printf '%s\n' \
-      "node ALL=(root) NOPASSWD: /usr/local/bin/init-proxy.sh" \
-      "node ALL=(root) NOPASSWD: /usr/local/bin/reload-squid.sh" \
-      > /etc/sudoers.d/node-proxy && \
-    chmod 0440 /etc/sudoers.d/node-proxy
-USER node
+      "${USERNAME} ALL=(root) NOPASSWD: /usr/local/bin/init-proxy.sh" \
+      "${USERNAME} ALL=(root) NOPASSWD: /usr/local/bin/reload-squid.sh" \
+      > /etc/sudoers.d/${USERNAME}-proxy && \
+    chmod 0440 /etc/sudoers.d/${USERNAME}-proxy
+
+ENV DEVCONTAINER=true
+
+USER ${USERNAME}
