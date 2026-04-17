@@ -64,15 +64,22 @@ RUN groupadd --gid ${USER_GID} ${USERNAME} && \
     echo "${USERNAME} ALL=(root) NOPASSWD:ALL" > /etc/sudoers.d/${USERNAME} && \
     chmod 0440 /etc/sudoers.d/${USERNAME}
 
-# Node.js toolchain — many Claude Code plugins, MCP servers, and dev
-# tools ship as npm packages and need `node` / `npx` on PATH. We use
-# the NodeSource distribution (the method documented at
-# https://nodejs.org/en/download for Debian/Ubuntu) instead of nvm
-# because we just need one pinned major version image-wide.
-ARG NODE_MAJOR=24
-RUN curl -fsSL "https://deb.nodesource.com/setup_${NODE_MAJOR}.x" | bash - && \
-    apt-get install -y --no-install-recommends nodejs && \
-    apt-get clean && rm -rf /var/lib/apt/lists/* && \
+# Node.js — many Claude Code plugins, MCP servers, and dev tools ship
+# as npm packages and need `node` / `npx` on PATH. Pulled straight from
+# the official https://nodejs.org/dist/ binary tarballs (the same source
+# that fnm, nvm, and NodeSource all mirror). Pin a full semver so the
+# image is reproducible; Renovate can bump this ARG.
+ARG NODE_VERSION=24.15.0
+RUN ARCH=$(dpkg --print-architecture) && \
+    case "${ARCH}" in \
+      amd64) NODE_ARCH=x64 ;; \
+      arm64) NODE_ARCH=arm64 ;; \
+      *) echo "unsupported architecture for Node.js: ${ARCH}" >&2; exit 1 ;; \
+    esac && \
+    wget -qO /tmp/node.tar.gz "https://nodejs.org/dist/v${NODE_VERSION}/node-v${NODE_VERSION}-linux-${NODE_ARCH}.tar.gz" && \
+    tar -xzf /tmp/node.tar.gz -C /usr/local --strip-components=1 \
+      --exclude='*/LICENSE' --exclude='*/README.md' --exclude='*/CHANGELOG.md' && \
+    rm /tmp/node.tar.gz && \
     node --version && npm --version
 
 # Go toolchain for this project. The version is derived from go.mod so the
