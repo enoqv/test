@@ -58,7 +58,7 @@ SQUID_PID=$!
 chown proxy:proxy /var/log/squid/access.log /var/log/squid/cache.log 2>/dev/null || true
 tail -F /var/log/squid/access.log 2>/dev/null &
 TAIL_ACCESS_PID=$!
-tail -F /var/log/squid/cache.log 1>&2 2>/dev/null &
+tail -F /var/log/squid/cache.log 2>/dev/null &
 TAIL_CACHE_PID=$!
 
 reload_squid() {
