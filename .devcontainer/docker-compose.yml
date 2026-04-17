@@ -47,7 +47,8 @@ services:
       - ./squid/squid.conf:/etc/squid/squid.conf:ro
       - ./squid/allowed-domains.txt:/etc/squid/allowed-domains.txt
       - squid-cache:/var/spool/squid
-      - squid-logs:/var/log/squid
+      # No /var/log/squid volume: the entrypoint symlinks the log
+      # files to /dev/stdout so all records stream to `docker logs`.
     networks:
       - internal
       - external
@@ -74,4 +75,3 @@ volumes:
   go-cache:
   go-mod-cache:
   squid-cache:
-  squid-logs:
