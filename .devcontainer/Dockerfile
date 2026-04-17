@@ -150,12 +150,16 @@ ENV EDITOR=nano
 ENV VISUAL=nano
 
 # zsh-in-docker: powerline10k theme + fzf keybindings + persistent history.
+# The fzf source lines are guarded with `[ -r ... ]` so the zshrc stays
+# quiet if the examples directory is ever missing (e.g. debian-slim's
+# `path-exclude=/usr/share/doc/*` stripping them before our
+# path-include whitelist takes effect in a stale image).
 ARG ZSH_IN_DOCKER_VERSION=1.2.0
 RUN sh -c "$(wget -O- https://github.com/deluan/zsh-in-docker/releases/download/v${ZSH_IN_DOCKER_VERSION}/zsh-in-docker.sh)" -- \
     -p git \
     -p fzf \
-    -a "source /usr/share/doc/fzf/examples/key-bindings.zsh" \
-    -a "source /usr/share/doc/fzf/examples/completion.zsh" \
+    -a "[ -r /usr/share/doc/fzf/examples/key-bindings.zsh ] && source /usr/share/doc/fzf/examples/key-bindings.zsh" \
+    -a "[ -r /usr/share/doc/fzf/examples/completion.zsh ] && source /usr/share/doc/fzf/examples/completion.zsh" \
     -a "export PROMPT_COMMAND='history -a' && export HISTFILE=/commandhistory/.bash_history" \
     -x
 
