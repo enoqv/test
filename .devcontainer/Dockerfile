@@ -35,12 +35,16 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     wget \
   && apt-get clean && rm -rf /var/lib/apt/lists/*
 
-# Go toolchain for this project
-ARG GO_VERSION=1.25.9
+# Go toolchain for this project. The version is derived from go.mod so the
+# devcontainer stays in sync with the project's declared Go version.
+COPY go.mod /tmp/go.mod
 RUN ARCH=$(dpkg --print-architecture) && \
+    GO_VERSION="$(awk '/^go [0-9]+\.[0-9]+/ {print $2; exit}' /tmp/go.mod)" && \
+    [ -n "${GO_VERSION}" ] || { echo "failed to read go version from go.mod" >&2; exit 1; } && \
+    echo "installing Go ${GO_VERSION} for ${ARCH}" && \
     wget -qO /tmp/go.tar.gz "https://go.dev/dl/go${GO_VERSION}.linux-${ARCH}.tar.gz" && \
     tar -C /usr/local -xzf /tmp/go.tar.gz && \
-    rm /tmp/go.tar.gz
+    rm /tmp/go.tar.gz /tmp/go.mod
 ENV PATH="/usr/local/go/bin:${PATH}"
 ENV GOPATH=/home/node/go
 ENV GOCACHE=/home/node/.cache/go-build
@@ -101,8 +105,9 @@ RUN npm install -g @anthropic-ai/claude-code@${CLAUDE_CODE_VERSION}
 
 # Copy proxy init + squid reload helpers. Replaces the reference
 # init-firewall.sh domain-filtering approach with Squid-based filtering.
-COPY init-proxy.sh /usr/local/bin/init-proxy.sh
-COPY reload-squid.sh /usr/local/bin/reload-squid.sh
+# Paths are relative to the build context (repo root).
+COPY .devcontainer/init-proxy.sh /usr/local/bin/init-proxy.sh
+COPY .devcontainer/reload-squid.sh /usr/local/bin/reload-squid.sh
 USER root
 RUN chmod +x /usr/local/bin/init-proxy.sh /usr/local/bin/reload-squid.sh && \
     printf '%s\n' \

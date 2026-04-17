@@ -45,6 +45,11 @@ vscode.blob.core.windows.net
 .sentry.io
 o4508244122075648.ingest.us.sentry.io
 
+# --- Context7 MCP server (documentation lookups) ---
+.context7.com
+mcp.context7.com
+context7.com
+
 # --- Container registries used by docker-compose pulls ---
 registry-1.docker.io
 auth.docker.io
