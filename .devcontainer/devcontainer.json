@@ -39,5 +39,13 @@
   },
   "postStartCommand": "sudo /usr/local/bin/init-proxy.sh",
   "waitFor": "postStartCommand",
-  "overrideCommand": true
+  "overrideCommand": true,
+
+  // Skip the auto-generated `FROM $BASE_IMAGE` overlay that devcontainer
+  // CLI uses to align the container user's UID/GID with the host. The
+  // `node` user in our Dockerfile already has a reasonable UID, and the
+  // overlay Dockerfile is what produces the harmless
+  // `InvalidDefaultArgInFrom: Default value for ARG $BASE_IMAGE ...`
+  // warning from BuildKit during `devcontainer up`.
+  "updateRemoteUserUID": false
 }
