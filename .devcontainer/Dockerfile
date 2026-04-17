@@ -91,6 +91,14 @@ RUN ARCH=$(dpkg --print-architecture) && \
     chmod +x /usr/local/bin/zellij && \
     rm /tmp/zellij.tar.gz
 
+# Zellij default config for the `node` user. Mirrors
+# ~/.config/zellij/config.kdl so a fresh container has Vim-style
+# keybinds, catppuccin-mocha theme, session serialization, etc.
+# Source: https://gist.github.com/enoqv/707aafdcacc2a80f4b9b7e891a5760c5
+RUN mkdir -p /home/node/.config/zellij && \
+    chown -R node:node /home/node/.config
+COPY --chown=node:node .devcontainer/zellij/config.kdl /home/node/.config/zellij/config.kdl
+
 # Set up non-root user
 USER node
 
