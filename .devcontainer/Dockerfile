@@ -38,6 +38,15 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     locales \
   && apt-get clean && rm -rf /var/lib/apt/lists/*
 
+# Generate the en_US.UTF-8 locale so shells don't spit
+# `setlocale: LC_ALL: cannot change locale (en_US.UTF-8)` warnings.
+RUN sed -i 's/^# *\(en_US\.UTF-8\)/\1/' /etc/locale.gen && \
+    locale-gen en_US.UTF-8 && \
+    update-locale LANG=en_US.UTF-8
+ENV LANG=en_US.UTF-8
+ENV LANGUAGE=en_US:en
+ENV LC_ALL=en_US.UTF-8
+
 # Create the unprivileged `dever` user that Claude Code / the devcontainer
 # runs as. Provisioned manually because we're on a plain debian base.
 ARG USERNAME=dever

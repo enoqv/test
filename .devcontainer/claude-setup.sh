@@ -58,6 +58,30 @@ if [ -s "${MARKET_FILE}" ]; then
 fi
 
 # --- Plugins ----------------------------------------------------------
+# The official `claude-plugins-official` marketplace carries most plugins
+# (including context7 and superpowers) as git submodules under
+# `external_plugins/`. Claude Code's initial clone does not recurse
+# submodules, which breaks `claude plugin install` with:
+#   Failed to install plugin "<name>@claude-plugins-official":
+#   Source path does not exist: .../external_plugins/<name>
+# Force-materialize the official marketplace, then sync submodules for
+# every marketplace clone before running `claude plugin install`.
+log "refreshing claude-plugins-official marketplace"
+claude plugin marketplace update claude-plugins-official >/dev/null 2>&1 || true
+
+MARKETPLACES_DIR="${CLAUDE_HOME}/plugins/marketplaces"
+if [ -d "${MARKETPLACES_DIR}" ]; then
+  for mkt in "${MARKETPLACES_DIR}"/*/; do
+    [ -d "${mkt}" ] || continue
+    if [ -e "${mkt}.git" ] && [ -f "${mkt}.gitmodules" ]; then
+      log "syncing submodules for $(basename "${mkt}")"
+      git -C "${mkt}" submodule sync --recursive >/dev/null 2>&1 || true
+      git -C "${mkt}" submodule update --init --recursive \
+        || log "  submodule update failed for $(basename "${mkt}")"
+    fi
+  done
+fi
+
 PLUGINS_FILE="${CONF_DIR}/plugins.txt"
 if [ -s "${PLUGINS_FILE}" ]; then
   while IFS= read -r spec; do
