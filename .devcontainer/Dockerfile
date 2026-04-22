@@ -158,10 +158,17 @@ ENV VISUAL=nano
 # quiet if the examples directory is ever missing (e.g. debian-slim's
 # `path-exclude=/usr/share/doc/*` stripping them before our
 # path-include whitelist takes effect in a stale image).
+#
+# We intentionally DON'T enable oh-my-zsh's `-p fzf` plugin: its
+# `fzf_setup_using_debian` helper sources the same two files but
+# *without* any `-r` guard (see fzf.plugin.zsh's unguarded
+# `source $key_bindings`), so a missing examples dir would still
+# produce `fzf_setup_using_debian:source:40: no such file or directory`
+# even with our guards in place. The two `-a` lines below cover the
+# same keybindings + completion the plugin would have, quietly.
 ARG ZSH_IN_DOCKER_VERSION=1.2.0
 RUN sh -c "$(wget -O- https://github.com/deluan/zsh-in-docker/releases/download/v${ZSH_IN_DOCKER_VERSION}/zsh-in-docker.sh)" -- \
     -p git \
-    -p fzf \
     -a "[ -r /usr/share/doc/fzf/examples/key-bindings.zsh ] && source /usr/share/doc/fzf/examples/key-bindings.zsh" \
     -a "[ -r /usr/share/doc/fzf/examples/completion.zsh ] && source /usr/share/doc/fzf/examples/completion.zsh" \
     -a "export PROMPT_COMMAND='history -a' && export HISTFILE=/commandhistory/.bash_history" \

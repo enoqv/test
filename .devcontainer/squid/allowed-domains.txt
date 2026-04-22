@@ -43,3 +43,5 @@ vscode.blob.core.windows.net
 # --- Container registries used by docker-compose pulls ---
 .docker.io
 production.cloudflare.docker.com
+
+# --- Custom ---
