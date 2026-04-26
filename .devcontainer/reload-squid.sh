@@ -1,37 +1,37 @@
 #!/usr/bin/env bash
 # Force the squid container to re-read its allowlist.
 #
-# Normally this is automatic: the squid service watches
-# /etc/squid/allowed-domains.txt with inotify and runs `squid -k reconfigure`
-# whenever the file changes. If something went wrong (or the file was edited
-# in a way inotify missed), this script pokes the file by updating its mtime,
-# which triggers the same reconfigure path.
+# Normally this is automatic: the squid container bind-mounts the
+# .devcontainer/squid/lists directory and watches it with inotify, running
+# `squid -k reconfigure` whenever any file under it changes. This helper is
+# only needed if the inotify event was missed for some reason.
+#
+# Runs as the regular `dever` user — no sudo required, since the workspace
+# copy is owned by dever via the bind-mount.
 #
 # Usage (from inside the dev container):
-#   sudo reload-squid.sh
+#   reload-squid.sh
 
 set -euo pipefail
 
-ALLOWLIST="/etc/squid/allowed-domains.txt"
+# We touch the workspace copy (writable from dever) rather than the
+# bind-mounted RO copy at /etc/squid/lists/. The squid container observes
+# the same inode via its own bind-mount.
+WORKSPACE_COPY="/workspace/.devcontainer/squid/lists/allowed-domains.txt"
 
 log() { printf '[reload-squid] %s\n' "$*"; }
 
-if [[ ! -e "${ALLOWLIST}" ]]; then
-  echo "[reload-squid] error: ${ALLOWLIST} not found inside dev container" >&2
+if [[ ! -e "${WORKSPACE_COPY}" ]]; then
+  echo "[reload-squid] error: ${WORKSPACE_COPY} not found" >&2
   exit 1
 fi
 
-log "touching ${ALLOWLIST} to trigger squid reconfigure"
-# The file is bind-mounted read-only here but readable; we need to modify it
-# on the host. `touch -c` won't work through a read-only mount, so we write
-# through the workspace copy, which is the same inode on the host side.
-WORKSPACE_COPY="/workspace/.devcontainer/squid/allowed-domains.txt"
-if [[ -w "${WORKSPACE_COPY}" ]]; then
-  touch "${WORKSPACE_COPY}"
-  log "reload requested via ${WORKSPACE_COPY} (inotify watcher will reconfigure squid)"
-else
-  echo "[reload-squid] error: ${WORKSPACE_COPY} not writable" >&2
+if [[ ! -w "${WORKSPACE_COPY}" ]]; then
+  echo "[reload-squid] error: ${WORKSPACE_COPY} not writable by $(id -un)" >&2
   exit 1
 fi
 
-log "tail 'docker logs <squid>' to confirm reconfigure"
+log "touching ${WORKSPACE_COPY} to trigger squid reconfigure"
+touch "${WORKSPACE_COPY}"
+log "reload requested (inotify watcher in squid container will reconfigure)"
+log "tail 'docker logs <squid>' on the host to confirm reconfigure"

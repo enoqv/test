@@ -10,6 +10,8 @@ ENV TZ="$TZ"
 ENV DEBIAN_FRONTEND=noninteractive
 
 # Install basic development tools.
+# shellcheck + shfmt are kept for linting the devcontainer's own shell
+# scripts (init-proxy.sh, claude-setup.sh, etc.).
 # tmux/zellij are included so `claude --dangerously-skip-permissions`
 # sessions can be detached/reattached safely inside the sandboxed
 # devcontainer.
@@ -47,6 +49,10 @@ RUN echo 'path-include=/usr/share/doc/fzf/examples/*' \
     curl \
     wget \
     locales \
+    shellcheck \
+    shfmt \
+    postgresql-client \
+    redis-tools \
   && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # Generate the en_US.UTF-8 locale so shells don't spit
@@ -100,9 +106,10 @@ ENV PATH="/usr/local/go/bin:${PATH}"
 ENV GOPATH=/home/dever/go
 ENV GOCACHE=/home/dever/.cache/go-build
 
-# Persist bash history.
+# Persist shell history (both bash and zsh; default shell is zsh but bash
+# is still available via the terminal profile dropdown in VS Code).
 RUN mkdir /commandhistory && \
-    touch /commandhistory/.bash_history && \
+    touch /commandhistory/.bash_history /commandhistory/.zsh_history && \
     chown -R ${USERNAME}:${USERNAME} /commandhistory
 
 # Create workspace and config directories and set permissions
@@ -146,7 +153,7 @@ USER ${USERNAME}
 # npm is configured to install -g packages into ~/.npm-global so the
 # `dever` user doesn't need sudo for `npm i -g <pkg>`.
 ENV NPM_CONFIG_PREFIX=/home/dever/.npm-global
-ENV PATH=/home/dever/.local/bin:/home/dever/.npm-global/bin:${PATH}:/home/dever/go/bin
+ENV PATH=/home/dever/.local/bin:/home/dever/.npm-global/bin:/home/dever/go/bin:${PATH}
 
 # Default shell + editors.
 ENV SHELL=/bin/zsh
@@ -158,20 +165,14 @@ ENV VISUAL=nano
 # quiet if the examples directory is ever missing (e.g. debian-slim's
 # `path-exclude=/usr/share/doc/*` stripping them before our
 # path-include whitelist takes effect in a stale image).
-#
-# We intentionally DON'T enable oh-my-zsh's `-p fzf` plugin: its
-# `fzf_setup_using_debian` helper sources the same two files but
-# *without* any `-r` guard (see fzf.plugin.zsh's unguarded
-# `source $key_bindings`), so a missing examples dir would still
-# produce `fzf_setup_using_debian:source:40: no such file or directory`
-# even with our guards in place. The two `-a` lines below cover the
-# same keybindings + completion the plugin would have, quietly.
 ARG ZSH_IN_DOCKER_VERSION=1.2.0
 RUN sh -c "$(wget -O- https://github.com/deluan/zsh-in-docker/releases/download/v${ZSH_IN_DOCKER_VERSION}/zsh-in-docker.sh)" -- \
     -p git \
+    -p fzf \
     -a "[ -r /usr/share/doc/fzf/examples/key-bindings.zsh ] && source /usr/share/doc/fzf/examples/key-bindings.zsh" \
     -a "[ -r /usr/share/doc/fzf/examples/completion.zsh ] && source /usr/share/doc/fzf/examples/completion.zsh" \
-    -a "export PROMPT_COMMAND='history -a' && export HISTFILE=/commandhistory/.bash_history" \
+    -a "export HISTFILE=/commandhistory/.zsh_history HISTSIZE=100000 SAVEHIST=100000" \
+    -a "setopt INC_APPEND_HISTORY SHARE_HISTORY EXTENDED_HISTORY HIST_IGNORE_DUPS" \
     -x
 
 # Claude Code — native installer (per
@@ -187,10 +188,11 @@ RUN curl -fsSL https://claude.ai/install.sh | bash && \
 USER root
 COPY .devcontainer/init-proxy.sh /usr/local/bin/init-proxy.sh
 COPY .devcontainer/reload-squid.sh /usr/local/bin/reload-squid.sh
+# init-proxy.sh needs root (iptables); reload-squid.sh runs as the regular
+# user (it just touches a workspace-owned file).
 RUN chmod +x /usr/local/bin/init-proxy.sh /usr/local/bin/reload-squid.sh && \
     printf '%s\n' \
       "${USERNAME} ALL=(root) NOPASSWD: /usr/local/bin/init-proxy.sh" \
-      "${USERNAME} ALL=(root) NOPASSWD: /usr/local/bin/reload-squid.sh" \
       > /etc/sudoers.d/${USERNAME}-proxy && \
     chmod 0440 /etc/sudoers.d/${USERNAME}-proxy
 

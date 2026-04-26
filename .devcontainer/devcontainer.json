@@ -8,8 +8,8 @@
     "vscode": {
       "extensions": [
         "anthropic.claude-code",
-        "golang.go",
-        "eamodio.gitlens"
+        "mhutchie.git-graph",
+        "golang.go"
       ],
       "settings": {
         "go.useLanguageServer": true,
@@ -40,7 +40,12 @@
   "postStartCommand": "sudo /usr/local/bin/init-proxy.sh",
   "waitFor": "postStartCommand",
   "overrideCommand": true,
-
+  // Auto-forward the app's HTTP port to the host so `go run ./cmd/server`
+  // (which binds :8080 by default per internal/config) is reachable from a
+  // host browser at http://localhost:8080. VS Code shows a notification
+  // when the port goes live; the host side picks an available port if 8080
+  // is already taken on the host.
+  "forwardPorts": [8080],
   // Skip the auto-generated `FROM $BASE_IMAGE` overlay that devcontainer
   // CLI uses to align the container user's UID/GID with the host. The
   // `dever` user in our Dockerfile already has a reasonable UID, and the

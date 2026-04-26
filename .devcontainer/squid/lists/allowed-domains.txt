@@ -1,0 +1,64 @@
+# Dynamic allowlist for the Squid proxy.
+#
+# Syntax (squid dstdomain ACL):
+#   - `.example.com`  matches `example.com` and ALL subdomains
+#   - `example.com`   matches `example.com` exactly (no subdomains)
+#   - never list both forms of the same domain — squid treats that as
+#     a FATAL config error (the leading-dot form already covers the
+#     bare form, see RemoveACL warnings in squid's cache.log)
+#
+# Same file is also used as the `ssl::server_name` allowlist for SNI
+# verification on CONNECT tunnels (see squid.conf), so an entry here
+# permits both plain HTTP/HTTPS access AND TLS SNI inside CONNECT.
+#
+# After editing, squid auto-reloads via the inotify watcher inside the
+# squid container. To force a reload manually run `reload-squid.sh` from
+# inside the dev container.
+#
+# --- Convention for new entries ---
+# Tag each addition with date + reason so future audits/cleanups know
+# why something is here. Example:
+#
+#   # 2026-04-26: needed by `git push` against self-hosted forge
+#   git.example.com
+#
+# Prefer the narrowest hostname that works. `registry.npmjs.org` is
+# better than `.npmjs.org` because the latter also covers
+# www.npmjs.org, blog.npmjs.org, etc. that npm itself does not need.
+
+# --- Anthropic / Claude Code ---
+.anthropic.com
+.claude.ai
+.claude.com
+
+# --- Package registries (narrow to the actual fetch endpoints) ---
+registry.npmjs.org
+registry.yarnpkg.com
+# Go modules: proxy serves .info/.mod/.zip, sum is the checksum DB.
+proxy.golang.org
+sum.golang.org
+
+# --- GitHub ---
+.github.com
+.githubusercontent.com
+ghcr.io
+
+# --- VS Code / extensions ---
+update.code.visualstudio.com
+marketplace.visualstudio.com
+vscode.blob.core.windows.net
+.vscode-unpkg.net
+
+# --- Observability / telemetry used by Claude Code ---
+# (Remove this if you want to opt out of crash-report uploads.)
+.sentry.io
+
+# --- Context7 MCP server (documentation lookups) ---
+.context7.com
+
+# --- Container registries used by docker-compose pulls ---
+# Docker Hub: registry endpoint + auth + manifest index.
+registry-1.docker.io
+auth.docker.io
+index.docker.io
+production.cloudflare.docker.com

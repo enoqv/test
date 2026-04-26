@@ -4,10 +4,7 @@ FROM alpine:3.21
 RUN apk add --no-cache \
       squid \
       inotify-tools \
-      curl \
-      ca-certificates \
-      bash \
-      netcat-openbsd
+      bash
 
 # Ensure runtime directories exist and are owned by the squid user that
 # the `squid` package creates. On Alpine the effective user is `squid`

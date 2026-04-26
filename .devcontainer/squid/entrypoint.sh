@@ -11,7 +11,7 @@
 
 set -euo pipefail
 
-ALLOWLIST="/etc/squid/allowed-domains.txt"
+ALLOWLIST="/etc/squid/lists/allowed-domains.txt"
 SQUID_CONF="/etc/squid/squid.conf"
 
 log() { printf '[squid-entrypoint] %s\n' "$*"; }

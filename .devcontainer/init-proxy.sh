@@ -5,7 +5,7 @@
 # Instead of maintaining an ipset of IPs inside this container, all HTTP(S)
 # egress is forced through the Squid service on the `internal` Docker network,
 # which performs domain-based filtering against
-# /etc/squid/allowed-domains.txt. This script:
+# /etc/squid/lists/allowed-domains.txt. This script:
 #
 #   1. Confirms the Squid proxy is reachable on squid:3128.
 #   2. (Defense-in-depth) Installs iptables rules that reject any outbound
@@ -30,6 +30,14 @@ die() { printf '[init-proxy][ERROR] %s\n' "$*" >&2; exit 1; }
 
 # --- 1. Proxy reachability ------------------------------------------------
 
+# NOTE on PROXY_IP stability: this script resolves squid -> IP exactly once
+# at boot and pins it into an iptables ACCEPT rule below. Docker's embedded
+# DNS gives compose services stable IPs for the lifetime of the user-defined
+# network, so under normal `docker compose up/start/restart` cycles this is
+# fine. If the squid CONTAINER is recreated (e.g. `docker compose up
+# --force-recreate squid`) without also restarting the dev container, the
+# new squid IP won't match this rule and outbound to squid will be blocked.
+# Workaround: restart the dev container too (postStartCommand re-runs).
 log "resolving proxy host '${PROXY_HOST}'..."
 PROXY_IP="$(getent hosts "${PROXY_HOST}" | awk '{print $1}' | head -n1 || true)"
 [[ -n "${PROXY_IP}" ]] || die "cannot resolve ${PROXY_HOST} (is the squid service running?)"
@@ -43,41 +51,58 @@ log "proxy is accepting connections"
 # --- 2. iptables defense-in-depth ----------------------------------------
 # The internal docker network already has no NAT to the outside, but we still
 # lock down egress so any accidental extra network attachment can't leak.
+#
+# We use `iptables-restore` to apply the entire ruleset atomically. The old
+# approach (iptables -F + iptables -A ...) had a window where the policy
+# was DROP but no allow rules existed yet — if the script died mid-way the
+# container ended up totally networkless.
 
-if command -v iptables >/dev/null 2>&1; then
-  log "applying iptables egress restrictions"
+# Resolve optional sibling services on the internal docker network so the
+# Go app inside the dev container can reach its dependencies (postgres,
+# redis) directly without going through Squid. Resolution is best-effort:
+# if a service isn't running, we skip it silently — the iptables policy
+# still defaults to DROP.
+SIBLING_RULES=""
+for svc in postgres redis; do
+  svc_ip="$(getent hosts "${svc}" 2>/dev/null | awk '{print $1}' | head -n1 || true)"
+  if [[ -n "${svc_ip}" ]]; then
+    log "allowing egress to ${svc} (${svc_ip})"
+    SIBLING_RULES+="-A OUTPUT -d ${svc_ip} -j ACCEPT"$'\n'
+  fi
+done
 
-  # Flush existing rules in filter table.
-  iptables -F OUTPUT || true
-  iptables -P OUTPUT DROP
+if command -v iptables-restore >/dev/null 2>&1; then
+  log "applying iptables egress restrictions (atomic via iptables-restore)"
 
-  # Allow loopback.
-  iptables -A OUTPUT -o lo -j ACCEPT
-
-  # Allow DNS (docker embedded resolver lives on 127.0.0.11 usually, but
-  # outbound 53 also works for container DNS in some setups).
-  iptables -A OUTPUT -p udp --dport 53 -j ACCEPT
-  iptables -A OUTPUT -p tcp --dport 53 -j ACCEPT
-
-  # Allow established/related (responses to our proxy requests).
-  iptables -A OUTPUT -m state --state ESTABLISHED,RELATED -j ACCEPT
-
-  # Allow traffic to the Squid proxy.
-  iptables -A OUTPUT -d "${PROXY_IP}" -p tcp --dport "${PROXY_PORT}" -j ACCEPT
-
-  # Allow reaching docker-compose sibling services (postgres, redis) on the
-  # internal network. These are resolved lazily if they exist.
-  for svc in postgres redis; do
-    svc_ip="$(getent hosts "${svc}" 2>/dev/null | awk '{print $1}' | head -n1 || true)"
-    if [[ -n "${svc_ip}" ]]; then
-      log "allowing egress to ${svc} (${svc_ip})"
-      iptables -A OUTPUT -d "${svc_ip}" -j ACCEPT
-    fi
-  done
-
+  iptables-restore <<EOF
+*filter
+:INPUT ACCEPT [0:0]
+:FORWARD ACCEPT [0:0]
+:OUTPUT DROP [0:0]
+-A OUTPUT -o lo -j ACCEPT
+-A OUTPUT -m state --state ESTABLISHED,RELATED -j ACCEPT
+-A OUTPUT -d ${PROXY_IP} -p tcp --dport ${PROXY_PORT} -j ACCEPT
+${SIBLING_RULES}COMMIT
+EOF
   log "iptables OUTPUT policy is now DROP with explicit allows"
 else
-  log "iptables not available; relying on docker internal network only"
+  log "iptables-restore not available; relying on docker internal network only"
+fi
+
+# --- 2b. ip6tables: blanket-deny outbound IPv6 ---------------------------
+# We don't currently enable IPv6 on the docker networks, but if it ever
+# gets turned on (daemon.json `ipv6: true`), all the v4 rules above would
+# be silently bypassable via v6. A blanket DROP closes that hole.
+if command -v ip6tables-restore >/dev/null 2>&1; then
+  log "blanket-denying IPv6 egress"
+  ip6tables-restore <<EOF
+*filter
+:INPUT ACCEPT [0:0]
+:FORWARD ACCEPT [0:0]
+:OUTPUT DROP [0:0]
+-A OUTPUT -o lo -j ACCEPT
+COMMIT
+EOF
 fi
 
 # --- 3. Verification -----------------------------------------------------
@@ -106,4 +131,4 @@ else
 fi
 
 log "devcontainer proxy ready. HTTP_PROXY=http://${PROXY_HOST}:${PROXY_PORT}"
-log "edit .devcontainer/squid/allowed-domains.txt then run 'sudo reload-squid.sh' to update the filter"
+log "edit .devcontainer/squid/lists/allowed-domains.txt to update the filter (auto-reloads via inotify; or run reload-squid.sh)"
