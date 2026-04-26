@@ -5,3 +5,4 @@ coverage.out
 .env
 .env.local
 vendor/
+.prompt

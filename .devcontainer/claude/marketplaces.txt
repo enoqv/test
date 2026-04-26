@@ -1,9 +1,0 @@
-# Additional plugin marketplaces to register on devcontainer startup.
-# The official `claude-plugins-official` marketplace is auto-registered
-# by Claude Code itself, so it doesn't need to be listed here.
-#
-# One marketplace spec per line (URL or owner/repo). Comments (#) ignored.
-#
-# Examples:
-#   anthropics/claude-code      # the "claude-code-plugins" demo marketplace
-#   your-org/claude-plugins
