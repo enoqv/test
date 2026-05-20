@@ -1,0 +1,29 @@
+# https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-configuration/about-code-owners
+#
+# CODEOWNERS combined with "Require review from Code Owners" on the
+# main branch protection rule means changes to the paths below cannot
+# land without explicit owner approval. This is the last-mile defense
+# against a malicious PR that tries to weaken supply-chain controls
+# (e.g., loosening a cosign regex, removing an attestation step,
+# changing a base image, lifting Renovate's minimumReleaseAge).
+#
+# Owners are listed as GitHub usernames; add additional reviewers by
+# appending more @usernames separated by spaces on the same line.
+
+# Workflow definitions and CODEOWNERS itself.
+/.github/                       @enoqv
+
+# Dockerfile + base image references.
+/Dockerfile                     @enoqv
+/.dockerignore                  @enoqv
+
+# Linter and tool configuration that gates merges.
+/.golangci.yml                  @enoqv
+/.hadolint.yaml                 @enoqv
+
+# Renovate config (rules that gate dependency updates).
+/renovate.json                  @enoqv
+
+# Security posture documentation -- changes here usually accompany a
+# substantive policy change.
+/docs/                          @enoqv

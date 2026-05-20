@@ -139,8 +139,8 @@ One-time setup docs (moved out of this README to keep it focused on
 day-to-day development):
 
 - [`docs/renovate.md`](docs/renovate.md) — self-hosted Renovate workflow,
-  `RENOVATE_TOKEN` PAT permissions, and the two vulnerability-alert
-  channels (GitHub Dependabot alerts + OSV).
+  GitHub App installation, and the two vulnerability-alert channels
+  (GitHub Dependabot alerts + OSV).
 - [`docs/branch-protection.md`](docs/branch-protection.md) — required
   status checks for `main`, including the `renovate/stability-days`
   gate that enforces `minimumReleaseAge`.

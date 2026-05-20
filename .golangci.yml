@@ -1,0 +1,18 @@
+# golangci-lint v2 config -- https://golangci-lint.run/docs/configuration/file/
+#
+# Linter selection rationale:
+#   - default: standard pulls in govet, errcheck, ineffassign, staticcheck,
+#     and unused. These are the canonical Go correctness baseline.
+#   - gosec adds security-focused checks (G1xx: hardcoded creds, weak crypto,
+#     unsafe SQL string concat, unsafe filepath, unsafe rand, etc.). It is
+#     complementary to govulncheck: govulncheck flags known CVEs in our deps,
+#     gosec flags risky patterns in our own code.
+version: "2"
+
+run:
+  timeout: 5m
+
+linters:
+  default: standard
+  enable:
+    - gosec

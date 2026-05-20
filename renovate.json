@@ -155,6 +155,24 @@
       "groupName": "container base images"
     },
 
+    // Security-tooling actions are usually released together (the
+    // actions/* org bumps minor versions in tandem when GitHub ships
+    // a platform change). Grouping keeps the PR queue tidy and reduces
+    // the number of CI runs from churn-heavy upstream release weeks.
+    {
+      "description": "Group security/lint tooling actions.",
+      "matchPackageNames": [
+        "golangci/golangci-lint-action",
+        "github/codeql-action",
+        "actions/dependency-review-action",
+        "actions/attest-build-provenance",
+        "actions/attest",
+        "anchore/sbom-action",
+        "actions/create-github-app-token"
+      ],
+      "groupName": "security tooling"
+    },
+
     // Major bumps do not auto-open a PR. They appear on the Dependency
     // Dashboard as approval checkboxes; ticking the box tells Renovate
     // to open a real PR. Avoids PR spam from cross-major releases

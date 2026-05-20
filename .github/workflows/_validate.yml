@@ -1,7 +1,18 @@
 name: Validate (reusable)
 
+# TODO(egress-firewall): when GitHub Actions native egress firewall reaches
+# GA (2026 roadmap), enable it on every job in Monitor mode first, then
+# Block mode once the baseline is stable. Deliberately NOT using
+# step-security/harden-runner due to:
+#   - in-VM agent architecture, root-bypassable from within the runner
+#     (CVE-2025-32955 disable-sudo bypass, CVE-2026-32946 TCP DNS egress,
+#     CVE-2026-25598 sendmsg/sendto audit gap)
+#   - telemetry pushed to a third-party control plane by default
+# Native firewall will live outside the runner VM (L7) and supersedes
+# both concerns. Same TODO mirrored in publish.yml and renovate.yml.
+
 # Reusable validation pipeline called by ci.yml (on PR / main push) and
-# by release.yml (on v*.*.* tag push). Keeps the validation rules in a
+# by publish.yml (on v*.*.* tag push). Keeps the validation rules in a
 # single place so the gate is identical whichever entry point triggers it.
 
 on:
@@ -14,6 +25,7 @@ jobs:
   lint:
     name: Lint (hadolint)
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     permissions:
       contents: read
     steps:
@@ -47,6 +59,7 @@ jobs:
   test:
     name: Test
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     permissions:
       contents: read
     steps:
@@ -66,13 +79,33 @@ jobs:
         run: go vet ./...
 
       - name: Test
-        run: go test -race -coverprofile=coverage.out ./...
+        run: go test -race ./...
 
-      - name: Upload coverage
-        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+  # -------------------------------------------------------------------
+  # Go static analysis (golangci-lint = govet + errcheck + ineffassign +
+  # staticcheck + unused + gosec). Catches taint, hardcoded credentials,
+  # unsafe SQL string concat, weak crypto, etc., that govulncheck does not
+  # look at -- govulncheck only flags KNOWN CVEs in dependencies; gosec
+  # flags risky patterns in OUR code before they become a CVE.
+  # -------------------------------------------------------------------
+  lint-go:
+    name: Lint (golangci-lint)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Set up Go
+        uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6.4.0
         with:
-          name: coverage
-          path: coverage.out
+          go-version-file: go.mod
+          cache: true
+
+      - name: Run golangci-lint
+        uses: golangci/golangci-lint-action@1e7e51e771db61008b38414a730f564565cf7c20 # v9.2.0
 
   # -------------------------------------------------------------------
   # govulncheck: Go's official reachability-aware vulnerability scanner.
@@ -89,6 +122,7 @@ jobs:
   govulncheck:
     name: Govulncheck (Go vulnerability reachability)
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     permissions:
       contents: read
     steps:
@@ -113,6 +147,7 @@ jobs:
   verify-base-images:
     name: Verify base image signatures
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     permissions:
       contents: read
     steps:
@@ -132,6 +167,7 @@ jobs:
   scan:
     name: Trivy CVE scan
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     permissions:
       contents: read
       security-events: write
@@ -177,3 +213,30 @@ jobs:
         with:
           sarif_file: trivy-results.sarif
           category: trivy
+
+  # -------------------------------------------------------------------
+  # dependency-review: PR-only. Blocks PRs that introduce dependencies
+  # with known vulnerabilities at HIGH severity or above. Renovate
+  # guards the maintenance path, but human-authored PRs (especially
+  # from forks) can still introduce a vulnerable direct or transitive
+  # dependency via go.mod / go.sum. This is GitHub's first-party check
+  # against the Advisory Database -- different data source from OSV /
+  # govulncheck and so catches things the OSV path can miss.
+  # -------------------------------------------------------------------
+  dependency-review:
+    name: Dependency review (PR only)
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: write   # post diff summary comment when something fails
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Dependency review
+        uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294 # v5.0.0
+        with:
+          fail-on-severity: high
+          comment-summary-in-pr: on-failure

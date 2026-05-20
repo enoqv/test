@@ -1,6 +1,18 @@
-name: Release
+name: Publish
+
+# TODO(egress-firewall): see _validate.yml header. Same egress-firewall
+# rollout plan applies here. This workflow has the highest blast radius
+# (id-token + packages:write), so enable Block mode here first once the
+# native firewall reaches GA.
 
 # Triggered only on pushed tags matching v*.*.* (semver).
+#
+# Renamed from release.yml on 2026-05-20. "Publish" describes what this
+# workflow actually does (push artifact, sign, attest); "release" overloads
+# git tag, SemVer, and GitHub Release object semantics. Image signatures
+# from tags pushed before the rename carry the old workflow identity --
+# see docs/branch-protection.md for the two corresponding cosign verify
+# commands.
 #
 # Flow:
 #   1. guard                  -- reject tags not reachable from main
@@ -21,6 +33,12 @@ env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
 
+# Never cancel an in-flight publish: a partial run can leave half-signed
+# or half-attested artifacts. One tag, one run, run it to completion.
+concurrency:
+  group: publish-${{ github.ref }}
+  cancel-in-progress: false
+
 # Top-level permissions are intentionally the least-privileged default.
 # Capabilities needed by individual jobs (packages: write for push,
 # id-token: write for keyless cosign signing, security-events: write
@@ -39,6 +57,7 @@ jobs:
   guard:
     name: Tag must be on main
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     permissions:
       contents: read
     steps:
@@ -76,11 +95,13 @@ jobs:
   build-and-push:
     name: Build, push, sign and attest multi-arch image
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     needs: validate
     permissions:
       contents: read
       packages: write
-      id-token: write  # keyless cosign signing via GitHub OIDC
+      id-token: write       # keyless cosign signing + GitHub OIDC attestations
+      attestations: write   # write SLSA provenance to the GitHub attestation API
     outputs:
       digest: ${{ steps.push.outputs.digest }}
     steps:
@@ -131,6 +152,39 @@ jobs:
           sbom: true
           provenance: mode=max
 
+      # Native GitHub artifact attestation in addition to the in-image
+      # provenance attached by build-push-action above. With this, downstream
+      # consumers can run `gh attestation verify` against the published image
+      # without needing cosign installed.
+      - name: Attest build provenance (GitHub-native)
+        uses: actions/attest-build-provenance@a2bbfa25375fe432b6a289bc6b6cd05ecd0c4c32 # v4.1.0
+        with:
+          subject-name: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          subject-digest: ${{ steps.push.outputs.digest }}
+          push-to-registry: true
+
+      # Generate an SBOM of the pushed image. build-push-action above already
+      # attaches an SBOM attestation in-image (BuildKit/syft), but we also
+      # publish the SBOM to GitHub's first-party attestation API so it can
+      # be retrieved by `gh attestation verify --predicate-type spdx`.
+      - name: Generate SBOM (SPDX) with syft
+        uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0.24.0
+        with:
+          image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${{ steps.push.outputs.digest }}
+          format: spdx-json
+          output-file: sbom.spdx.json
+
+      # NOTE: actions/attest-sbom is being deprecated in favor of the
+      # generic actions/attest. Use actions/attest with SPDX predicate.
+      - name: Attest SBOM (GitHub-native)
+        uses: actions/attest@59d89421af93a897026c735860bf21b6eb4f7b26 # v4.1.0
+        with:
+          subject-name: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          subject-digest: ${{ steps.push.outputs.digest }}
+          predicate-type: 'https://spdx.dev/Document'
+          predicate-path: sbom.spdx.json
+          push-to-registry: true
+
       - name: Install cosign
         uses: sigstore/cosign-installer@cad07c2e89fa2edd6e2d7bab4c1aa38e53f76003 # v4.1.1
 
@@ -151,6 +205,7 @@ jobs:
   verify-published-image:
     name: Verify our own signature
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     needs: build-and-push
     permissions:
       contents: read
@@ -173,5 +228,5 @@ jobs:
           ref="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${{ needs.build-and-push.outputs.digest }}"
           cosign verify \
             --certificate-oidc-issuer='https://token.actions.githubusercontent.com' \
-            --certificate-identity-regexp="^https://github\.com/${{ github.repository }}/\.github/workflows/.+@refs/tags/v.+" \
+            --certificate-identity-regexp="^https://github\.com/${{ github.repository }}/\.github/workflows/publish\.yml@refs/tags/v.+" \
             "$ref"
