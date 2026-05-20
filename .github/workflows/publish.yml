@@ -100,7 +100,8 @@ jobs:
     permissions:
       contents: read
       packages: write
-      id-token: write  # keyless cosign signing via GitHub OIDC
+      id-token: write       # keyless cosign signing + GitHub OIDC attestations
+      attestations: write   # write SLSA provenance to the GitHub attestation API
     outputs:
       digest: ${{ steps.push.outputs.digest }}
     steps:
@@ -150,6 +151,17 @@ jobs:
           cache-to: type=gha,mode=max
           sbom: true
           provenance: mode=max
+
+      # Native GitHub artifact attestation in addition to the in-image
+      # provenance attached by build-push-action above. With this, downstream
+      # consumers can run `gh attestation verify` against the published image
+      # without needing cosign installed.
+      - name: Attest build provenance (GitHub-native)
+        uses: actions/attest-build-provenance@a2bbfa25375fe432b6a289bc6b6cd05ecd0c4c32 # v4.1.0
+        with:
+          subject-name: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          subject-digest: ${{ steps.push.outputs.digest }}
+          push-to-registry: true
 
       - name: Install cosign
         uses: sigstore/cosign-installer@cad07c2e89fa2edd6e2d7bab4c1aa38e53f76003 # v4.1.1
