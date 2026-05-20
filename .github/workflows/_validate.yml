@@ -88,6 +88,32 @@ jobs:
           path: coverage.out
 
   # -------------------------------------------------------------------
+  # Go static analysis (golangci-lint = govet + errcheck + ineffassign +
+  # staticcheck + unused + gosec). Catches taint, hardcoded credentials,
+  # unsafe SQL string concat, weak crypto, etc., that govulncheck does not
+  # look at -- govulncheck only flags KNOWN CVEs in dependencies; gosec
+  # flags risky patterns in OUR code before they become a CVE.
+  # -------------------------------------------------------------------
+  lint-go:
+    name: Lint (golangci-lint)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Set up Go
+        uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6.4.0
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Run golangci-lint
+        uses: golangci/golangci-lint-action@1e7e51e771db61008b38414a730f564565cf7c20 # v9.2.0
+
+  # -------------------------------------------------------------------
   # govulncheck: Go's official reachability-aware vulnerability scanner.
   # Unlike Trivy (which reports every CVE in a Go binary's transitive
   # dependency set), govulncheck only flags CVEs whose vulnerable symbols
