@@ -219,3 +219,30 @@ jobs:
         with:
           sarif_file: trivy-results.sarif
           category: trivy
+
+  # -------------------------------------------------------------------
+  # dependency-review: PR-only. Blocks PRs that introduce dependencies
+  # with known vulnerabilities at HIGH severity or above. Renovate
+  # guards the maintenance path, but human-authored PRs (especially
+  # from forks) can still introduce a vulnerable direct or transitive
+  # dependency via go.mod / go.sum. This is GitHub's first-party check
+  # against the Advisory Database -- different data source from OSV /
+  # govulncheck and so catches things the OSV path can miss.
+  # -------------------------------------------------------------------
+  dependency-review:
+    name: Dependency review (PR only)
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: write   # post diff summary comment when something fails
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Dependency review
+        uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294 # v5.0.0
+        with:
+          fail-on-severity: high
+          comment-summary-in-pr: on-failure
