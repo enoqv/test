@@ -1,9 +1,9 @@
-# syntax=docker/dockerfile:1.22
+# syntax=docker/dockerfile:1.22@sha256:4a43a54dd1fedceb30ba47e76cfcf2b47304f4161c0caeac2db1c61804ea3c91
 # Modeled on https://github.com/anthropics/claude-code/blob/main/.devcontainer/Dockerfile
 # but rebased on debian:bookworm-slim — Claude Code now ships as a native
 # binary (https://code.claude.com/docs/en/installation), so the Node.js
 # base image that the reference uses is no longer needed.
-FROM debian:bookworm-slim
+FROM debian:bookworm-slim@sha256:0104b334637a5f19aa9c983a91b54c89887c0984081f2068983107a6f6c21eeb
 
 ARG TZ
 ENV TZ="$TZ"
