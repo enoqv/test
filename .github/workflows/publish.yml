@@ -163,6 +163,28 @@ jobs:
           subject-digest: ${{ steps.push.outputs.digest }}
           push-to-registry: true
 
+      # Generate an SBOM of the pushed image. build-push-action above already
+      # attaches an SBOM attestation in-image (BuildKit/syft), but we also
+      # publish the SBOM to GitHub's first-party attestation API so it can
+      # be retrieved by `gh attestation verify --predicate-type spdx`.
+      - name: Generate SBOM (SPDX) with syft
+        uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0.24.0
+        with:
+          image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${{ steps.push.outputs.digest }}
+          format: spdx-json
+          output-file: sbom.spdx.json
+
+      # NOTE: actions/attest-sbom is being deprecated in favor of the
+      # generic actions/attest. Use actions/attest with SPDX predicate.
+      - name: Attest SBOM (GitHub-native)
+        uses: actions/attest@59d89421af93a897026c735860bf21b6eb4f7b26 # v4.1.0
+        with:
+          subject-name: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          subject-digest: ${{ steps.push.outputs.digest }}
+          predicate-type: 'https://spdx.dev/Document'
+          predicate-path: sbom.spdx.json
+          push-to-registry: true
+
       - name: Install cosign
         uses: sigstore/cosign-installer@cad07c2e89fa2edd6e2d7bab4c1aa38e53f76003 # v4.1.1
 
