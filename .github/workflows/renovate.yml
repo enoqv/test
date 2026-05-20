@@ -1,5 +1,9 @@
 name: Renovate
 
+# TODO(egress-firewall): see _validate.yml header. Same egress-firewall
+# rollout plan applies here. Allowlist will need npmjs.org, pypi.org,
+# proxy.golang.org, sum.golang.org, and the configured Renovate datasources.
+
 # Runs Renovate on a fixed schedule from this repository itself, instead
 # of relying on the Mend-hosted Renovate GitHub App.  Configuration lives
 # in ./renovate.json.

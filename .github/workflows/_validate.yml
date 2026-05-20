@@ -1,5 +1,16 @@
 name: Validate (reusable)
 
+# TODO(egress-firewall): when GitHub Actions native egress firewall reaches
+# GA (2026 roadmap), enable it on every job in Monitor mode first, then
+# Block mode once the baseline is stable. Deliberately NOT using
+# step-security/harden-runner due to:
+#   - in-VM agent architecture, root-bypassable from within the runner
+#     (CVE-2025-32955 disable-sudo bypass, CVE-2026-32946 TCP DNS egress,
+#     CVE-2026-25598 sendmsg/sendto audit gap)
+#   - telemetry pushed to a third-party control plane by default
+# Native firewall will live outside the runner VM (L7) and supersedes
+# both concerns. Same TODO mirrored in publish.yml and renovate.yml.
+
 # Reusable validation pipeline called by ci.yml (on PR / main push) and
 # by publish.yml (on v*.*.* tag push). Keeps the validation rules in a
 # single place so the gate is identical whichever entry point triggers it.

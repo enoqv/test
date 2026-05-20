@@ -1,5 +1,10 @@
 name: Publish
 
+# TODO(egress-firewall): see _validate.yml header. Same egress-firewall
+# rollout plan applies here. This workflow has the highest blast radius
+# (id-token + packages:write), so enable Block mode here first once the
+# native firewall reaches GA.
+
 # Triggered only on pushed tags matching v*.*.* (semver).
 #
 # Renamed from release.yml on 2026-05-20. "Publish" describes what this
