@@ -2,10 +2,10 @@ name: CI
 
 # Runs on every PR to main and every push to main. Delegates the actual
 # validation to the reusable _validate.yml workflow, so the identical
-# validation pipeline is used by release.yml before publishing an image.
+# validation pipeline is used by publish.yml before publishing an image.
 #
-# This workflow does NOT build or push an image. The image release
-# pipeline lives in .github/workflows/release.yml and triggers only on
+# This workflow does NOT build or push an image. The image publish
+# pipeline lives in .github/workflows/publish.yml and triggers only on
 # v*.*.* tags.
 
 on:

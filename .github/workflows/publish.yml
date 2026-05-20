@@ -1,6 +1,13 @@
-name: Release
+name: Publish
 
 # Triggered only on pushed tags matching v*.*.* (semver).
+#
+# Renamed from release.yml on 2026-05-20. "Publish" describes what this
+# workflow actually does (push artifact, sign, attest); "release" overloads
+# git tag, SemVer, and GitHub Release object semantics. Image signatures
+# from tags pushed before the rename carry the old workflow identity --
+# see docs/branch-protection.md for the two corresponding cosign verify
+# commands.
 #
 # Flow:
 #   1. guard                  -- reject tags not reachable from main
@@ -173,5 +180,5 @@ jobs:
           ref="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${{ needs.build-and-push.outputs.digest }}"
           cosign verify \
             --certificate-oidc-issuer='https://token.actions.githubusercontent.com' \
-            --certificate-identity-regexp="^https://github\.com/${{ github.repository }}/\.github/workflows/.+@refs/tags/v.+" \
+            --certificate-identity-regexp="^https://github\.com/${{ github.repository }}/\.github/workflows/publish\.yml@refs/tags/v.+" \
             "$ref"
