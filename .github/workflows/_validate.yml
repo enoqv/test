@@ -79,13 +79,7 @@ jobs:
         run: go vet ./...
 
       - name: Test
-        run: go test -race -coverprofile=coverage.out ./...
-
-      - name: Upload coverage
-        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
-        with:
-          name: coverage
-          path: coverage.out
+        run: go test -race ./...
 
   # -------------------------------------------------------------------
   # Go static analysis (golangci-lint = govet + errcheck + ineffassign +
