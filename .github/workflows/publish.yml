@@ -28,6 +28,12 @@ env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
 
+# Never cancel an in-flight publish: a partial run can leave half-signed
+# or half-attested artifacts. One tag, one run, run it to completion.
+concurrency:
+  group: publish-${{ github.ref }}
+  cancel-in-progress: false
+
 # Top-level permissions are intentionally the least-privileged default.
 # Capabilities needed by individual jobs (packages: write for push,
 # id-token: write for keyless cosign signing, security-events: write
