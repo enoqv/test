@@ -14,6 +14,7 @@ jobs:
   lint:
     name: Lint (hadolint)
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     permissions:
       contents: read
     steps:
@@ -47,6 +48,7 @@ jobs:
   test:
     name: Test
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     permissions:
       contents: read
     steps:
@@ -89,6 +91,7 @@ jobs:
   govulncheck:
     name: Govulncheck (Go vulnerability reachability)
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     permissions:
       contents: read
     steps:
@@ -113,6 +116,7 @@ jobs:
   verify-base-images:
     name: Verify base image signatures
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     permissions:
       contents: read
     steps:
@@ -132,6 +136,7 @@ jobs:
   scan:
     name: Trivy CVE scan
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     permissions:
       contents: read
       security-events: write

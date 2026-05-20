@@ -52,6 +52,7 @@ jobs:
   guard:
     name: Tag must be on main
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     permissions:
       contents: read
     steps:
@@ -89,6 +90,7 @@ jobs:
   build-and-push:
     name: Build, push, sign and attest multi-arch image
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     needs: validate
     permissions:
       contents: read
@@ -164,6 +166,7 @@ jobs:
   verify-published-image:
     name: Verify our own signature
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     needs: build-and-push
     permissions:
       contents: read
